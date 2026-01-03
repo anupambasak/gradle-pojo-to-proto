@@ -1,0 +1,60 @@
+buildscript {
+    repositories {
+        maven {
+            name = "local"
+            url = rootProject.layout.buildDirectory.dir("repo")
+        }
+        mavenCentral()
+    }
+    dependencies {
+        classpath "com.anupambasak.gradle.plugins.pojo2proto:plugin:0.1.0-SNAPSHOT"
+    }
+}
+
+plugins{
+    id "com.google.protobuf" version "0.9.6"
+}
+
+apply plugin: 'pojo-to-proto'
+apply plugin: 'java-library'
+
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:4.33.2"
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+
+    implementation "com.google.protobuf:protobuf-java:4.33.2"
+    implementation "com.google.protobuf:protobuf-java-util:4.33.2"
+
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.12.1'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.12.1'
+    testImplementation gradleTestKit()
+}
+
+
+
+testing {
+    suites {
+        test {
+            useJUnitJupiter('5.12.1')
+            targets.all {
+                testTask.configure {
+                    systemProperty 'root.project.dir', rootProject.projectDir.absolutePath
+                }
+            }
+        }
+    }
+}
+
+pojoToProto {
+    source = project.layout.projectDirectory.dir("src/main/java/com/anupambasak/gradle")
+    destination = project.layout.projectDirectory.dir("src/main/proto")
+    packageName = "com.anupambasak.gradle.proto"
+}

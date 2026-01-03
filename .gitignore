@@ -1,0 +1,65 @@
+.gradle/
+/build/
+/out/
+.idea/
+.project
+.settings/
+bin/
+.classpath
+.factorypath
+.apt_generated
+.apt_generated_tests
+.DS_Store
+*.log
+*.swp
+*~
+.gradle-enterprise/
+.kotlin/
+.vscode/
+# Intellij
+.idea/
+.project
+.settings/
+.idea_modules/
+*.iml
+*.iws
+*.ipr
+# Eclipse
+.classpath
+.project
+.settings/
+# VS Code
+.vscode/
+# Mac
+.DS_Store
+# Windows
+Thumbs.db
+Desktop.ini
+# Gradle
+.gradle
+build/
+.gradle/
+!gradle-wrapper.jar
+/gradle/wrapper/gradle-wrapper.jar
+!/gradle/wrapper/gradle-wrapper.properties
+.gradletasknamecache
+# Java
+*.class
+*.jar
+*.war
+*.ear
+*.zip
+*.tar.gz
+# Log files
+*.log
+# IDEs and editors
+*.swp
+*~
+.#*
+# OS generated files
+.DS_Store
+.localized
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+**/GEMINI.md

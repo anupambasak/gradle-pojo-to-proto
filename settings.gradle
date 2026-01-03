@@ -1,0 +1,6 @@
+rootProject.name = 'gradle-pojo-to-proto'
+include('plugin')
+
+if (!settings.hasProperty('publishingPlugin')) {
+    include('test-pojo-to-proto')
+}

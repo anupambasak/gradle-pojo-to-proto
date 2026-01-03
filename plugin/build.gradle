@@ -1,0 +1,48 @@
+plugins {
+    id 'java-gradle-plugin'
+    id 'maven-publish'
+}
+
+group = 'com.anupambasak.gradle.plugins.pojo2proto'
+version = '0.1.0-SNAPSHOT'
+
+repositories {
+    // Use Maven Central for resolving dependencies.
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'com.github.javaparser:javaparser-core:3.27.1'
+}
+
+testing {
+    suites {
+        // Configure the built-in test suite
+        test {
+            // Use JUnit Jupiter test framework
+            useJUnitJupiter('5.12.1')
+        }
+    }
+}
+
+gradlePlugin {
+    // Define the plugin
+    plugins {
+        pojoToProto {
+            id = 'pojo-to-proto'
+            implementationClass = 'com.anupambasak.gradle.plugins.pojo2proto.GradlePojoToProtoPlugin'
+            displayName = 'Gradle POJO to Proto Plugin'
+            description = 'A Gradle plugin to convert POJO to proto files.'
+        }
+    }
+}
+
+publishing {
+    repositories {
+        maven {
+            name = "local"
+            url = rootProject.layout.buildDirectory.dir("repo")
+        }
+    }
+}
+

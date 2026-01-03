@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+package com.anupambasak.gradle.proto;
+
+option java_package = "com.anupambasak.gradle.proto";
+
+message Address {
+  string street = 1;
+  string city = 2;
+  int32 zipCode = 3;
+}
+

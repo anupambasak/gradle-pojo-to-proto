@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package com.anupambasak.gradle.proto;
+
+option java_package = "com.anupambasak.gradle.proto";
+
+import "Address.proto";
+import "google/protobuf/timestamp.proto";
+
+message MyPojo {
+  string name = 1;
+  int32 age = 2;
+  Address address = 3;
+  repeated Address previousAddresses = 4;
+  google.protobuf.Timestamp createdAt = 5;
+}
+
