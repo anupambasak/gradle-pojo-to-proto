@@ -19,6 +19,7 @@ java {
 
 dependencies {
     implementation 'com.github.javaparser:javaparser-core:3.27.1'
+    implementation gradleApi()
 }
 
 testing {

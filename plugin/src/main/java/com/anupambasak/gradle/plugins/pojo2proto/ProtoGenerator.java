@@ -17,6 +17,7 @@
 package com.anupambasak.gradle.plugins.pojo2proto;
 
 import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.body.EnumConstantDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
 
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 public class ProtoGenerator {
 
@@ -62,7 +64,7 @@ public class ProtoGenerator {
                 for (VariableDeclarator variable : field.getVariables()) {
                     String fieldName = variable.getNameAsString();
                     String fieldType = variable.getType().asString();
-                    String protoType = getProtoType(fieldType);
+                    String protoType = getProtoType(fieldType, null);
                     messageBuilder.append(String.format("  %s %s = %d;\n", protoType, fieldName, index.getAndIncrement()));
                 }
             });
@@ -72,14 +74,37 @@ public class ProtoGenerator {
         return messageBuilder.toString();
     }
 
-    public Set<String> getImports(CompilationUnit cu) {
+    public String generateEnums(List<CompilationUnit> cus) {
+        StringBuilder enums = new StringBuilder();
+        for (CompilationUnit cu : cus) {
+            enums.append(generateEnum(cu));
+        }
+        return enums.toString();
+    }
+
+    public String generateEnum(CompilationUnit cu) {
+        StringBuilder enumBuilder = new StringBuilder();
+        cu.getPrimaryTypeName().ifPresent(className -> {
+            enumBuilder.append("enum ").append(className).append(" {\n");
+            AtomicInteger index = new AtomicInteger(0);
+            cu.findAll(EnumConstantDeclaration.class).forEach(enumConstant -> {
+                enumBuilder.append(String.format("  %s = %d;\n", enumConstant.getNameAsString(), index.getAndIncrement()));
+            });
+            enumBuilder.append("}\n\n");
+        });
+        return enumBuilder.toString();
+    }
+
+    public Set<String> getImports(CompilationUnit cu, List<CompilationUnit> enumCus) {
         Set<String> imports = new TreeSet<>();
         cu.findAll(FieldDeclaration.class).forEach(field -> {
             for (VariableDeclarator variable : field.getVariables()) {
                 String fieldType = variable.getType().asString();
                 String importType = getImportType(fieldType);
 
-                if (!isPrimitive(importType)) {
+                if (isEnum(importType, enumCus)) {
+                    imports.add(importType + ".proto");
+                } else if (!isPrimitive(importType)) {
                     switch (importType) {
                         case "Instant":
                         case "ZonedDateTime":
@@ -108,10 +133,13 @@ public class ProtoGenerator {
         return imports;
     }
 
-    private String getProtoType(String javaType) {
+    private String getProtoType(String javaType, List<CompilationUnit> enumCus) {
         if (javaType.startsWith("List<")) {
             String nestedType = javaType.substring(5, javaType.length() - 1);
-            return "repeated " + getProtoType(nestedType);
+            return "repeated " + getProtoType(nestedType, enumCus);
+        }
+        if (isEnum(javaType, enumCus)) {
+            return javaType;
         }
         switch (javaType) {
             case "String":
@@ -165,6 +193,14 @@ public class ProtoGenerator {
             default:
                 return false;
         }
+    }
+
+    private boolean isEnum(String javaType, List<CompilationUnit> enumCus) {
+        if (enumCus == null) {
+            return false;
+        }
+        return enumCus.stream()
+                .anyMatch(cu -> cu.getPrimaryTypeName().map(name -> name.equals(javaType)).orElse(false));
     }
 
     private String getImportType(String javaType) {

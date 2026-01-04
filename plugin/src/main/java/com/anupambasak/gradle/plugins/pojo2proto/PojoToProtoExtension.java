@@ -16,13 +16,14 @@
 
 package com.anupambasak.gradle.plugins.pojo2proto;
 
+import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.provider.Property;
 
 import java.util.List;
 
 public abstract class PojoToProtoExtension {
-    public abstract DirectoryProperty getSource();
+    public abstract ConfigurableFileCollection getSource();
     public abstract DirectoryProperty getDestination();
     public abstract Property<Boolean> getSingleFile();
     public abstract Property<String> getPackageName();

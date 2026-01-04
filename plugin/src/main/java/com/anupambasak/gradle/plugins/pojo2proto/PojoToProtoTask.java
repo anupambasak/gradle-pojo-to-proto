@@ -19,10 +19,11 @@ package com.anupambasak.gradle.plugins.pojo2proto;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import org.gradle.api.DefaultTask;
+import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
-import org.gradle.api.tasks.InputDirectory;
+import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
@@ -33,7 +34,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
@@ -41,8 +41,8 @@ import java.util.stream.Collectors;
 
 public abstract class PojoToProtoTask extends DefaultTask {
 
-    @InputDirectory
-    public abstract DirectoryProperty getSource();
+    @InputFiles
+    public abstract ConfigurableFileCollection getSource();
 
     @OutputDirectory
     public abstract DirectoryProperty getDestination();
@@ -64,72 +64,105 @@ public abstract class PojoToProtoTask extends DefaultTask {
     @TaskAction
     public void execute() {
         ProtoGenerator protoGenerator = new ProtoGenerator();
-        File sourceDirFile = getSource().get().getAsFile();
         File destinationDirFile = getDestination().get().getAsFile();
         boolean singleFile = getSingleFile().getOrElse(false);
         String packageName = getPackageName().getOrElse(getProjectGroup().get());
 
-        if (sourceDirFile.exists() && sourceDirFile.isDirectory()) {
-            try {
-                List<File> javaFiles = Files.walk(sourceDirFile.toPath())
-                        .filter(Files::isRegularFile)
-                        .filter(p -> p.toString().endsWith(".java"))
-                        .map(Path::toFile)
-                        .sorted()
-                        .collect(Collectors.toList());
-
-                List<CompilationUnit> cus = new ArrayList<>();
-                for (File javaFile : javaFiles) {
-                    try {
-                        cus.add(StaticJavaParser.parse(javaFile));
-                    } catch (IOException e) {
-                        getLogger().error("Error parsing file: " + javaFile.getName(), e);
+        List<CompilationUnit> classCus = new ArrayList<>();
+        List<CompilationUnit> enumCus = new ArrayList<>();
+        for (File javaFile : getSource()) {
+            if (javaFile.isFile() && javaFile.getName().endsWith(".java")) {
+                try {
+                    CompilationUnit cu = StaticJavaParser.parse(javaFile);
+                    if (cu.getPrimaryType().isPresent() && cu.getPrimaryType().get().isEnumDeclaration()) {
+                        enumCus.add(cu);
+                    } else {
+                        classCus.add(cu);
                     }
+                } catch (IOException e) {
+                    getLogger().error("Error parsing file: " + javaFile.getName(), e);
                 }
+            } else if (javaFile.isDirectory()) {
+                try {
+                    Files.walk(javaFile.toPath())
+                            .filter(Files::isRegularFile)
+                            .filter(p -> p.toString().endsWith(".java"))
+                            .forEach(p -> {
+                                try {
+                                    CompilationUnit cu = StaticJavaParser.parse(p);
+                                    if (cu.getPrimaryType().isPresent() && cu.getPrimaryType().get().isEnumDeclaration()) {
+                                        enumCus.add(cu);
+                                    } else {
+                                        classCus.add(cu);
+                                    }
+                                } catch (IOException e) {
+                                    getLogger().error("Error parsing file: " + p.getFileName().toString(), e);
+                                }
+                            });
+                } catch (IOException e) {
+                    getLogger().error("Error reading java files from directory: " + javaFile.getAbsolutePath(), e);
+                }
+            }
+        }
 
-                if (singleFile) {
-                    Set<String> allImports = new TreeSet<>();
-                    for (CompilationUnit cu : cus) {
-                        allImports.addAll(protoGenerator.getImports(cu));
-                    }
+        if (singleFile) {
+            Set<String> allImports = new TreeSet<>();
+            for (CompilationUnit cu : classCus) {
+                allImports.addAll(protoGenerator.getImports(cu, enumCus));
+            }
 
-                    Set<String> allTypeNames = cus.stream()
-                            .flatMap(cu -> cu.getPrimaryTypeName().stream())
-                            .collect(Collectors.toSet());
-                    allImports.removeIf(anImport -> allTypeNames.contains(anImport.replace(".proto", "")));
+            Set<String> allTypeNames = classCus.stream()
+                    .flatMap(cu -> cu.getPrimaryTypeName().stream())
+                    .collect(Collectors.toSet());
+            allTypeNames.addAll(enumCus.stream()
+                    .flatMap(cu -> cu.getPrimaryTypeName().stream())
+                    .collect(Collectors.toSet()));
 
-                    String header = protoGenerator.generateHeader(packageName, allImports);
-                    String messages = protoGenerator.generateMessages(cus);
-                    String protoContent = header + messages;
+            allImports.removeIf(anImport -> allTypeNames.contains(anImport.replace(".proto", "")));
 
+            String header = protoGenerator.generateHeader(packageName, allImports);
+            String messages = protoGenerator.generateMessages(classCus);
+            String enums = protoGenerator.generateEnums(enumCus);
+            String protoContent = header + messages + enums;
+
+            try {
+                Path protoFilePath = Paths.get(destinationDirFile.getAbsolutePath(), getProjectName().get() + ".proto");
+                Files.write(protoFilePath, protoContent.getBytes());
+                getLogger().lifecycle("Generated " + protoFilePath);
+            } catch (IOException e) {
+                getLogger().error("Error writing proto file", e);
+            }
+        } else {
+            for (CompilationUnit cu : classCus) {
+                Set<String> imports = protoGenerator.getImports(cu, enumCus);
+                String header = protoGenerator.generateHeader(packageName, imports);
+                String message = protoGenerator.generateMessage(cu);
+                String protoContent = header + message;
+
+                cu.getPrimaryTypeName().ifPresent(className -> {
                     try {
-                        Path protoFilePath = Paths.get(destinationDirFile.getAbsolutePath(), getProjectName().get() + ".proto");
+                        Path protoFilePath = Paths.get(destinationDirFile.getAbsolutePath(), className + ".proto");
                         Files.write(protoFilePath, protoContent.getBytes());
                         getLogger().lifecycle("Generated " + protoFilePath);
                     } catch (IOException e) {
                         getLogger().error("Error writing proto file", e);
                     }
-                } else {
-                    for (CompilationUnit cu : cus) {
-                        Set<String> imports = protoGenerator.getImports(cu);
-                        String header = protoGenerator.generateHeader(packageName, imports);
-                        String message = protoGenerator.generateMessage(cu);
-                        String protoContent = header + message;
+                });
+            }
+            for (CompilationUnit cu : enumCus) {
+                String header = protoGenerator.generateHeader(packageName, new TreeSet<>());
+                String enumContent = protoGenerator.generateEnum(cu);
+                String protoContent = header + enumContent;
 
-                        cu.getPrimaryTypeName().ifPresent(className -> {
-                            try {
-                                Path protoFilePath = Paths.get(destinationDirFile.getAbsolutePath(), className + ".proto");
-                                Files.write(protoFilePath, protoContent.getBytes());
-                                getLogger().lifecycle("Generated " + protoFilePath);
-                            } catch (IOException e) {
-                                getLogger().error("Error writing proto file", e);
-                            }
-                        });
+                cu.getPrimaryTypeName().ifPresent(className -> {
+                    try {
+                        Path protoFilePath = Paths.get(destinationDirFile.getAbsolutePath(), className + ".proto");
+                        Files.write(protoFilePath, protoContent.getBytes());
+                        getLogger().lifecycle("Generated " + protoFilePath);
+                    } catch (IOException e) {
+                        getLogger().error("Error writing proto file", e);
                     }
-                }
-
-            } catch (IOException e) {
-                getLogger().error("Error reading java files", e);
+                });
             }
         }
     }
