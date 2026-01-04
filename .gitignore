@@ -63,3 +63,4 @@ ehthumbs.db
 ehthumbs_vista.db
 *.stackdump
 **/GEMINI.md
+test-pojo-to-proto/src/main/proto/*.proto
