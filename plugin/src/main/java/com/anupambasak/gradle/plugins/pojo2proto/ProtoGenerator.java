@@ -32,7 +32,8 @@ public class ProtoGenerator {
         headerBuilder.append("syntax = \"proto3\";\n\n");
         if (packageName != null && !packageName.isEmpty()) {
             headerBuilder.append("package ").append(packageName).append(";\n\n");
-            headerBuilder.append("option java_package = \"").append(packageName).append("\";\n\n");
+            headerBuilder.append("option java_package = \"").append(packageName).append("\";\n");
+            headerBuilder.append("option java_multiple_files = true;\n\n");
         }
         if (!imports.isEmpty()) {
             for (String anImport : imports) {
