@@ -16,10 +16,13 @@
 
 package com.anupambasak.gradle.dtos;
 
+import lombok.Data;
+
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 
+@Data
 public class PersonPojo {
     private String name;
     private int age;

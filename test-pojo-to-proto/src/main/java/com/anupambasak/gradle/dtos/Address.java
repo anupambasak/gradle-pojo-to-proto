@@ -16,6 +16,9 @@
 
 package com.anupambasak.gradle.dtos;
 
+import lombok.Data;
+
+@Data
 public class Address {
     private String street;
     private String city;

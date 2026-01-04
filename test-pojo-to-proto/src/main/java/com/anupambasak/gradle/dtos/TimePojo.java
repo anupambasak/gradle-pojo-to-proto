@@ -16,6 +16,8 @@
 
 package com.anupambasak.gradle.dtos;
 
+import lombok.Data;
+
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -25,6 +27,7 @@ import java.time.Period;
 import java.time.ZonedDateTime;
 import java.util.List;
 
+@Data
 public class TimePojo {
     private Instant instant;
     private ZonedDateTime zonedDateTime;
