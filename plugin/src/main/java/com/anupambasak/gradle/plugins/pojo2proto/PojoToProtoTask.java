@@ -70,9 +70,14 @@ public abstract class PojoToProtoTask extends DefaultTask {
         String packageName = getPackageName().getOrElse(getProjectGroup().get());
 
         if (sourceDirFile.exists() && sourceDirFile.isDirectory()) {
-            File[] javaFiles = sourceDirFile.listFiles((dir, name) -> name.endsWith(".java"));
-            if (javaFiles != null) {
-                Arrays.sort(javaFiles);
+            try {
+                List<File> javaFiles = Files.walk(sourceDirFile.toPath())
+                        .filter(Files::isRegularFile)
+                        .filter(p -> p.toString().endsWith(".java"))
+                        .map(Path::toFile)
+                        .sorted()
+                        .collect(Collectors.toList());
+
                 List<CompilationUnit> cus = new ArrayList<>();
                 for (File javaFile : javaFiles) {
                     try {
@@ -122,6 +127,9 @@ public abstract class PojoToProtoTask extends DefaultTask {
                         });
                     }
                 }
+
+            } catch (IOException e) {
+                getLogger().error("Error reading java files", e);
             }
         }
     }

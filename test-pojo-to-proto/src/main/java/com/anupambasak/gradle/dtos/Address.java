@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.anupambasak.gradle;
+package com.anupambasak.gradle.dtos;
 
 public class Address {
     private String street;

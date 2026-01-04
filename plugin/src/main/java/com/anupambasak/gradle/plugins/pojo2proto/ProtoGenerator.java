@@ -76,12 +76,30 @@ public class ProtoGenerator {
         cu.findAll(FieldDeclaration.class).forEach(field -> {
             for (VariableDeclarator variable : field.getVariables()) {
                 String fieldType = variable.getType().asString();
-                if (!isPrimitive(fieldType)) {
-                    String importType = getImportType(fieldType);
-                    if (importType.equals("Instant")) {
-                        imports.add("google/protobuf/timestamp.proto");
-                    } else {
-                        imports.add(importType + ".proto");
+                String importType = getImportType(fieldType);
+
+                if (!isPrimitive(importType)) {
+                    switch (importType) {
+                        case "Instant":
+                        case "ZonedDateTime":
+                        case "LocalDateTime":
+                            imports.add("google/protobuf/timestamp.proto");
+                            break;
+                        case "LocalDate":
+                            imports.add("google/type/date.proto");
+                            break;
+                        case "LocalTime":
+                            imports.add("google/type/timeofday.proto");
+                            break;
+                        case "Duration":
+                            imports.add("google/protobuf/duration.proto");
+                            break;
+                        case "Period":
+                            // No import needed for string
+                            break;
+                        default:
+                            imports.add(importType + ".proto");
+                            break;
                     }
                 }
             }
@@ -90,6 +108,10 @@ public class ProtoGenerator {
     }
 
     private String getProtoType(String javaType) {
+        if (javaType.startsWith("List<")) {
+            String nestedType = javaType.substring(5, javaType.length() - 1);
+            return "repeated " + getProtoType(nestedType);
+        }
         switch (javaType) {
             case "String":
                 return "string";
@@ -109,41 +131,39 @@ public class ProtoGenerator {
             case "Boolean":
                 return "bool";
             case "Instant":
+            case "ZonedDateTime":
+            case "LocalDateTime":
                 return "google.protobuf.Timestamp";
-            case "List<String>":
-                return "repeated string";
-            case "List<Integer>":
-                return "repeated int32";
-            case "List<Long>":
-                return "repeated int64";
-            case "List<Double>":
-                return "repeated double";
-            case "List<Float>":
-                return "repeated float";
-            case "List<Boolean>":
-                return "repeated bool";
+            case "LocalDate":
+                return "google.type.Date";
+            case "LocalTime":
+                return "google.type.TimeOfDay";
+            case "Duration":
+                return "google.protobuf.Duration";
+            case "Period":
+                return "string";
             default:
-                if (javaType.startsWith("List<")) {
-                    String nestedType = javaType.substring(5, javaType.length() - 1);
-                    return "repeated " + nestedType;
-                }
                 return javaType;
         }
     }
 
     private boolean isPrimitive(String javaType) {
-        return javaType.equals("String") ||
-                javaType.equals("int") || javaType.equals("Integer") ||
-                javaType.equals("long") || javaType.equals("Long") ||
-                javaType.equals("double") || javaType.equals("Double") ||
-                javaType.equals("float") || javaType.equals("Float") ||
-                javaType.equals("boolean") || javaType.equals("Boolean") ||
-                javaType.equals("List<String>") ||
-                javaType.equals("List<Integer>") ||
-                javaType.equals("List<Long>") ||
-                javaType.equals("List<Double>") ||
-                javaType.equals("List<Float>") ||
-                javaType.equals("List<Boolean>");
+        switch (javaType) {
+            case "String":
+            case "int":
+            case "Integer":
+            case "long":
+            case "Long":
+            case "double":
+            case "Double":
+            case "float":
+            case "Float":
+            case "boolean":
+            case "Boolean":
+                return true;
+            default:
+                return false;
+        }
     }
 
     private String getImportType(String javaType) {
