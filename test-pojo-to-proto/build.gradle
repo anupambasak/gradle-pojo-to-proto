@@ -15,7 +15,8 @@ plugins{
     id "com.google.protobuf" version "0.9.6"
 }
 
-ext.protobufVersion = "4.32.1"
+ext.protobufVersion = "3.25.8"
+
 
 apply plugin: 'pojo-to-proto'
 apply plugin: 'java-library'

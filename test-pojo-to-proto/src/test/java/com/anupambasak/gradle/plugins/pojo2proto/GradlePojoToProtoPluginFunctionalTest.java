@@ -23,23 +23,15 @@ import com.anupambasak.gradle.testenums.EnumPojo;
 import com.anupambasak.gradle.testenums.TestEnum;
 import com.google.protobuf.Timestamp;
 import com.google.protobuf.util.Timestamps;
-import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.LocalDateTime;
-import java.time.LocalTime;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
+import java.time.*;
 import java.util.Collections;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 class GradlePojoToProtoPluginFunctionalTest {
 
@@ -95,6 +87,22 @@ class GradlePojoToProtoPluginFunctionalTest {
         assertTrue(timePojoProtoContent.contains("  repeated google.type.TimeOfDay localTimes = 12;"));
         assertTrue(timePojoProtoContent.contains("  repeated google.protobuf.Duration durations = 13;"));
         assertTrue(timePojoProtoContent.contains("  repeated string periods = 14;"));
+    }
+
+    @Test
+    void verifyMapPojoProtoContent() throws IOException {
+        Path mapPojoProtoPath = Path.of(protoDir, "MapPojo.proto");
+        assertTrue(Files.exists(mapPojoProtoPath), "MapPojo.proto should be generated");
+
+        String mapPojoProtoContent = Files.readString(mapPojoProtoPath);
+        assertTrue(mapPojoProtoContent.contains("syntax = \"proto3\";"));
+        assertTrue(mapPojoProtoContent.contains("package com.anupambasak.gradle.proto;"));
+        assertTrue(mapPojoProtoContent.contains("option java_package = \"com.anupambasak.gradle.proto\";"));
+        assertTrue(mapPojoProtoContent.contains("option java_multiple_files = true;"));
+        assertTrue(mapPojoProtoContent.contains("import \"Address.proto\";"));
+        assertTrue(mapPojoProtoContent.contains("message MapPojo {"));
+        assertTrue(mapPojoProtoContent.contains("  map<string, int32> simpleMap = 1;"));
+        assertTrue(mapPojoProtoContent.contains("  map<string, Address> complexMap = 2;"));
     }
 
     @Test
@@ -227,5 +235,36 @@ class GradlePojoToProtoPluginFunctionalTest {
         // Assert values
         assertEquals(enumPojo.getTestEnum().name(), enumProto.getTestEnum().name());
     }
+
+    @Test
+    void verifyProtoFromMapPojo() {
+        // Create Address POJO for map value
+        Address addressPojo = new Address();
+        addressPojo.setStreet("456 Oak Ave");
+        addressPojo.setCity("Othertown");
+        addressPojo.setZipCode(54321);
+
+        // Create MapPojo
+        com.anupambasak.gradle.dtos.MapPojo mapPojo = new com.anupambasak.gradle.dtos.MapPojo();
+        mapPojo.setSimpleMap(Collections.singletonMap("one", 1));
+        mapPojo.setComplexMap(Collections.singletonMap("home", addressPojo));
+
+        // Create Proto from MapPojo
+        com.anupambasak.gradle.proto.Address addressProto = com.anupambasak.gradle.proto.Address.newBuilder()
+                .setStreet(addressPojo.getStreet())
+                .setCity(addressPojo.getCity())
+                .setZipCode(addressPojo.getZipCode())
+                .build();
+
+        com.anupambasak.gradle.proto.MapPojo mapProto = com.anupambasak.gradle.proto.MapPojo.newBuilder()
+                .putSimpleMap("one", 1)
+                .putComplexMap("home", addressProto)
+                .build();
+
+        // Assert values
+        assertEquals(mapPojo.getSimpleMap().get("one"), mapProto.getSimpleMapMap().get("one"));
+        assertEquals(mapPojo.getComplexMap().get("home").getStreet(), mapProto.getComplexMapMap().get("home").getStreet());
+    }
+
 }
 

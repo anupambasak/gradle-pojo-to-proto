@@ -21,10 +21,13 @@ import com.github.javaparser.ast.body.EnumConstantDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class ProtoGenerator {
@@ -100,32 +103,34 @@ public class ProtoGenerator {
         cu.findAll(FieldDeclaration.class).forEach(field -> {
             for (VariableDeclarator variable : field.getVariables()) {
                 String fieldType = variable.getType().asString();
-                String importType = getImportType(fieldType);
+                List<String> importTypes = getImportTypes(fieldType);
 
-                if (isEnum(importType, enumCus)) {
-                    imports.add(importType + ".proto");
-                } else if (!isPrimitive(importType)) {
-                    switch (importType) {
-                        case "Instant":
-                        case "ZonedDateTime":
-                        case "LocalDateTime":
-                            imports.add("google/protobuf/timestamp.proto");
-                            break;
-                        case "LocalDate":
-                            imports.add("google/type/date.proto");
-                            break;
-                        case "LocalTime":
-                            imports.add("google/type/timeofday.proto");
-                            break;
-                        case "Duration":
-                            imports.add("google/protobuf/duration.proto");
-                            break;
-                        case "Period":
-                            // No import needed for string
-                            break;
-                        default:
-                            imports.add(importType + ".proto");
-                            break;
+                for (String importType : importTypes) {
+                    if (isEnum(importType, enumCus)) {
+                        imports.add(importType + ".proto");
+                    } else if (!isPrimitive(importType)) {
+                        switch (importType) {
+                            case "Instant":
+                            case "ZonedDateTime":
+                            case "LocalDateTime":
+                                imports.add("google/protobuf/timestamp.proto");
+                                break;
+                            case "LocalDate":
+                                imports.add("google/type/date.proto");
+                                break;
+                            case "LocalTime":
+                                imports.add("google/type/timeofday.proto");
+                                break;
+                            case "Duration":
+                                imports.add("google/protobuf/duration.proto");
+                                break;
+                            case "Period":
+                                // No import needed for string
+                                break;
+                            default:
+                                imports.add(importType + ".proto");
+                                break;
+                        }
                     }
                 }
             }
@@ -138,11 +143,21 @@ public class ProtoGenerator {
             String nestedType = javaType.substring(5, javaType.length() - 1);
             return "repeated " + getProtoType(nestedType, enumCus);
         }
+        if (javaType.matches("(Map|HashMap|LinkedHashMap|TreeMap)<.*,.*>")) {
+            Pattern pattern = Pattern.compile("<(.*),(.*)>");
+            Matcher matcher = pattern.matcher(javaType);
+            if (matcher.find()) {
+                String keyType = getProtoType(matcher.group(1).trim(), enumCus);
+                String valueType = getProtoType(matcher.group(2).trim(), enumCus);
+                return String.format("map<%s, %s>", keyType, valueType);
+            }
+        }
         if (isEnum(javaType, enumCus)) {
             return javaType;
         }
         switch (javaType) {
             case "String":
+            case "UUID":
                 return "string";
             case "int":
             case "Integer":
@@ -179,6 +194,7 @@ public class ProtoGenerator {
     private boolean isPrimitive(String javaType) {
         switch (javaType) {
             case "String":
+            case "UUID":
             case "int":
             case "Integer":
             case "long":
@@ -203,10 +219,20 @@ public class ProtoGenerator {
                 .anyMatch(cu -> cu.getPrimaryTypeName().map(name -> name.equals(javaType)).orElse(false));
     }
 
-    private String getImportType(String javaType) {
+    private List<String> getImportTypes(String javaType) {
         if (javaType.startsWith("List<")) {
-            return javaType.substring(5, javaType.length() - 1);
+            return getImportTypes(javaType.substring(5, javaType.length() - 1));
         }
-        return javaType;
+        if (javaType.matches("(Map|HashMap|LinkedHashMap|TreeMap)<.*,.*>")) {
+            Pattern pattern = Pattern.compile("<(.*),(.*)>");
+            Matcher matcher = pattern.matcher(javaType);
+            if (matcher.find()) {
+                List<String> types = new ArrayList<>();
+                types.addAll(getImportTypes(matcher.group(1).trim()));
+                types.addAll(getImportTypes(matcher.group(2).trim()));
+                return types;
+            }
+        }
+        return List.of(javaType);
     }
 }
