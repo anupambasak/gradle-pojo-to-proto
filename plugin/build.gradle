@@ -11,6 +11,12 @@ repositories {
     mavenCentral()
 }
 
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(17))
+    }
+}
+
 dependencies {
     implementation 'com.github.javaparser:javaparser-core:3.27.1'
 }
