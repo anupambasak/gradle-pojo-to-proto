@@ -21,6 +21,7 @@ import com.anupambasak.gradle.dtos.PersonPojo;
 import com.anupambasak.gradle.dtos.TimePojo;
 import com.google.protobuf.Timestamp;
 import com.google.protobuf.util.Timestamps;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -36,6 +37,7 @@ import java.util.Collections;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 class GradlePojoToProtoPluginFunctionalTest {
 
@@ -136,6 +138,8 @@ class GradlePojoToProtoPluginFunctionalTest {
         assertEquals(addressPojo.getStreet(), personProto.getPreviousAddresses(0).getStreet());
         assertEquals(personPojo.getCreatedAt().getEpochSecond(), personProto.getCreatedAt().getSeconds());
         assertEquals(personPojo.getDob().toEpochSecond(ZoneOffset.UTC), personProto.getDob().getSeconds());
+
+        assertNotNull(personProto.toByteArray());
     }
 
     @Test
@@ -203,6 +207,8 @@ class GradlePojoToProtoPluginFunctionalTest {
         assertEquals(timePojo.getDurations().get(0).getSeconds(), timeProto.getDurations(0).getSeconds());
         assertEquals(1, timeProto.getPeriodsCount());
         assertEquals(timePojo.getPeriods().get(0).toString(), timeProto.getPeriods(0));
+
+        assertNotNull(timeProto.toByteArray());
     }
 }
 
