@@ -19,6 +19,7 @@ package com.anupambasak.gradle.plugins.pojo2proto;
 import com.anupambasak.gradle.dtos.Address;
 import com.anupambasak.gradle.dtos.PersonPojo;
 import com.anupambasak.gradle.dtos.TimePojo;
+import com.anupambasak.gradle.testenums.Conts;
 import com.anupambasak.gradle.testenums.EnumPojo;
 import com.anupambasak.gradle.testenums.TestEnum;
 import com.google.protobuf.Timestamp;
@@ -89,20 +90,81 @@ class GradlePojoToProtoPluginFunctionalTest {
         assertTrue(timePojoProtoContent.contains("  repeated string periods = 14;"));
     }
 
-    @Test
-    void verifyMapPojoProtoContent() throws IOException {
-        Path mapPojoProtoPath = Path.of(protoDir, "MapPojo.proto");
-        assertTrue(Files.exists(mapPojoProtoPath), "MapPojo.proto should be generated");
+        @Test
+        void verifyMapPojoProtoContent() throws IOException {
+            Path mapPojoProtoPath = Path.of(protoDir, "MapPojo.proto");
+            assertTrue(Files.exists(mapPojoProtoPath), "MapPojo.proto should be generated");
+            String mapPojoProtoContent = Files.readString(mapPojoProtoPath);
+            assertTrue(mapPojoProtoContent.contains("syntax = \"proto3\";"));
+            assertTrue(mapPojoProtoContent.contains("package com.anupambasak.gradle.proto;"));
+            assertTrue(mapPojoProtoContent.contains("option java_package = \"com.anupambasak.gradle.proto\";"));
+            assertTrue(mapPojoProtoContent.contains("option java_multiple_files = true;"));
+            assertTrue(mapPojoProtoContent.contains("import \"Address.proto\";"));
+            assertTrue(mapPojoProtoContent.contains("message MapPojo {"));
+            assertTrue(mapPojoProtoContent.contains("  map<string, int32> simpleMap = 1;"));
+            assertTrue(mapPojoProtoContent.contains("  map<string, Address> complexMap = 2;"));
 
-        String mapPojoProtoContent = Files.readString(mapPojoProtoPath);
-        assertTrue(mapPojoProtoContent.contains("syntax = \"proto3\";"));
-        assertTrue(mapPojoProtoContent.contains("package com.anupambasak.gradle.proto;"));
-        assertTrue(mapPojoProtoContent.contains("option java_package = \"com.anupambasak.gradle.proto\";"));
-        assertTrue(mapPojoProtoContent.contains("option java_multiple_files = true;"));
-        assertTrue(mapPojoProtoContent.contains("import \"Address.proto\";"));
-        assertTrue(mapPojoProtoContent.contains("message MapPojo {"));
-        assertTrue(mapPojoProtoContent.contains("  map<string, int32> simpleMap = 1;"));
-        assertTrue(mapPojoProtoContent.contains("  map<string, Address> complexMap = 2;"));
+        }
+
+    
+
+        @Test
+
+        void verifyContsProtoContent() throws IOException {
+            Path contsProtoPath = Path.of(protoDir, "Conts.proto");
+            assertTrue(Files.exists(contsProtoPath), "Conts.proto should be generated");
+            String contsProtoContent = Files.readString(contsProtoPath);
+            assertTrue(contsProtoContent.contains("syntax = \"proto3\";"));
+            assertTrue(contsProtoContent.contains("package com.anupambasak.gradle.proto;"));
+            assertTrue(contsProtoContent.contains("option java_package = \"com.anupambasak.gradle.proto\";"));
+            assertTrue(contsProtoContent.contains("option java_multiple_files = true;"));
+            assertFalse(contsProtoContent.contains("import \"BerthType.proto\";")); // No incorrect import
+            assertTrue(contsProtoContent.contains("message Conts {"));
+            assertTrue(contsProtoContent.contains("enum b {"));
+            assertTrue(contsProtoContent.contains("  c = 0;"));
+            assertTrue(contsProtoContent.contains("  d = 1;"));
+            assertTrue(contsProtoContent.contains("  e = 2;"));
+            assertTrue(contsProtoContent.contains("  f = 3;"));
+            assertTrue(contsProtoContent.contains("  g = 4;"));
+            assertTrue(contsProtoContent.contains("  h = 5;"));
+            assertTrue(contsProtoContent.contains("  i = 6;"));
+            assertTrue(contsProtoContent.contains("  j = 7;"));
+            assertTrue(contsProtoContent.contains("  k = 8;"));
+            assertTrue(contsProtoContent.contains("  l = 9;"));
+            assertTrue(contsProtoContent.contains("  m = 10;"));
+            assertTrue(contsProtoContent.contains("  n = 11;"));
+            assertTrue(contsProtoContent.contains("  o = 12;"));
+        }
+
+
+    @Test
+    void verifyEnumPojosProtoContent() throws IOException {
+        Path enumPojoProtoPath = Path.of(protoDir, "EnumPojo.proto");
+        assertTrue(Files.exists(enumPojoProtoPath), "EnumPojo.proto should be generated");
+
+        String enumPojoProtoContent = Files.readString(enumPojoProtoPath);
+        assertTrue(enumPojoProtoContent.contains("syntax = \"proto3\";"));
+        assertTrue(enumPojoProtoContent.contains("package com.anupambasak.gradle.proto;"));
+        assertTrue(enumPojoProtoContent.contains("option java_package = \"com.anupambasak.gradle.proto\";"));
+        assertTrue(enumPojoProtoContent.contains("option java_multiple_files = true;"));
+        assertTrue(enumPojoProtoContent.contains("import \"Conts.proto\";"));
+        assertTrue(enumPojoProtoContent.contains("import \"TestEnum.proto\";"));
+        assertTrue(enumPojoProtoContent.contains("message EnumPojo {"));
+        assertTrue(enumPojoProtoContent.contains("  TestEnum testEnum = 1;"));
+        assertTrue(enumPojoProtoContent.contains("  Conts.b berthType = 2;"));
+
+        Path testEnumProtoPath = Path.of(protoDir, "TestEnum.proto");
+        assertTrue(Files.exists(testEnumProtoPath), "TestEnum.proto should be generated");
+
+        String testEnumProtoContent = Files.readString(testEnumProtoPath);
+        assertTrue(testEnumProtoContent.contains("syntax = \"proto3\";"));
+        assertTrue(testEnumProtoContent.contains("package com.anupambasak.gradle.proto;"));
+        assertTrue(testEnumProtoContent.contains("option java_package = \"com.anupambasak.gradle.proto\";"));
+        assertTrue(testEnumProtoContent.contains("option java_multiple_files = true;"));
+        assertTrue(testEnumProtoContent.contains("enum TestEnum {"));
+        assertTrue(testEnumProtoContent.contains("  VALUE1 = 0;"));
+        assertTrue(testEnumProtoContent.contains("  VALUE2 = 1;"));
+        assertTrue(testEnumProtoContent.contains("  VALUE3 = 2;"));
     }
 
     @Test
@@ -226,14 +288,17 @@ class GradlePojoToProtoPluginFunctionalTest {
         // Create EnumPojo
         EnumPojo enumPojo = new EnumPojo();
         enumPojo.setTestEnum(TestEnum.VALUE2);
+        enumPojo.setBerthType(Conts.b.c);
 
         // Create Proto from EnumPojo
         com.anupambasak.gradle.proto.EnumPojo enumProto = com.anupambasak.gradle.proto.EnumPojo.newBuilder()
                 .setTestEnum(com.anupambasak.gradle.proto.TestEnum.VALUE2)
+                .setBerthType(com.anupambasak.gradle.proto.Conts.b.c)
                 .build();
 
         // Assert values
         assertEquals(enumPojo.getTestEnum().name(), enumProto.getTestEnum().name());
+        assertEquals(enumPojo.getBerthType().name(), enumProto.getBerthType().name());
     }
 
     @Test

@@ -18,6 +18,7 @@ package com.anupambasak.gradle.plugins.pojo2proto;
 
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.EnumConstantDeclaration;
+import com.github.javaparser.ast.body.EnumDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
 
@@ -49,15 +50,17 @@ public class ProtoGenerator {
         return headerBuilder.toString();
     }
 
-    public String generateMessages(List<CompilationUnit> cus) {
+    public String generateMessages(List<CompilationUnit> cus, List<EnumDeclaration> enumDeclarations) {
         StringBuilder messages = new StringBuilder();
         for (CompilationUnit cu : cus) {
-            messages.append(generateMessage(cu));
+            if (cu.getPrimaryType().isPresent() && !cu.getPrimaryType().get().isEnumDeclaration()) {
+                messages.append(generateMessage(cu, enumDeclarations));
+            }
         }
         return messages.toString();
     }
 
-    public String generateMessage(CompilationUnit cu) {
+    public String generateMessage(CompilationUnit cu, List<EnumDeclaration> enumDeclarations) {
         StringBuilder messageBuilder = new StringBuilder();
         cu.getPrimaryTypeName().ifPresent(className -> {
             messageBuilder.append("message ").append(className).append(" {\n");
@@ -67,7 +70,7 @@ public class ProtoGenerator {
                 for (VariableDeclarator variable : field.getVariables()) {
                     String fieldName = variable.getNameAsString();
                     String fieldType = variable.getType().asString();
-                    String protoType = getProtoType(fieldType, null);
+                    String protoType = getProtoType(fieldType, enumDeclarations);
                     messageBuilder.append(String.format("  %s %s = %d;\n", protoType, fieldName, index.getAndIncrement()));
                 }
             });
@@ -76,38 +79,74 @@ public class ProtoGenerator {
         });
         return messageBuilder.toString();
     }
+    
+    public String generateMessageWithNestedEnums(CompilationUnit cu, List<EnumDeclaration> nestedEnums, List<EnumDeclaration> allEnums) {
+        StringBuilder messageBuilder = new StringBuilder();
+        cu.getPrimaryTypeName().ifPresent(className -> {
+            messageBuilder.append("message ").append(className).append(" {\n");
 
-    public String generateEnums(List<CompilationUnit> cus) {
+            for (EnumDeclaration nestedEnum : nestedEnums) {
+                messageBuilder.append(generateEnum(nestedEnum));
+            }
+
+            if (!(cu.getPrimaryType().isPresent() && cu.getPrimaryType().get().isClassOrInterfaceDeclaration() && cu.getPrimaryType().get().asClassOrInterfaceDeclaration().isInterface())) {
+                AtomicInteger index = new AtomicInteger(1);
+                cu.findAll(FieldDeclaration.class).stream()
+                        .filter(field -> !field.isStatic()) // Filter out static fields
+                        .filter(field -> field.getParentNode().isPresent() && field.getParentNode().get().equals(cu.getPrimaryType().get()))
+                        .forEach(field -> {
+                            for (VariableDeclarator variable : field.getVariables()) {
+                                String fieldName = variable.getNameAsString();
+                                String fieldType = variable.getType().asString();
+                                String protoType = getProtoType(fieldType, allEnums);
+                                messageBuilder.append(String.format("  %s %s = %d;\n", protoType, fieldName, index.getAndIncrement()));
+                            }
+                        });
+            }
+            messageBuilder.append("}\n\n");
+        });
+        return messageBuilder.toString();
+    }
+
+    public String generateEnums(List<EnumDeclaration> enumDeclarations) {
         StringBuilder enums = new StringBuilder();
-        for (CompilationUnit cu : cus) {
-            enums.append(generateEnum(cu));
+        for (EnumDeclaration enumDeclaration : enumDeclarations) {
+            enums.append(generateEnum(enumDeclaration));
         }
         return enums.toString();
     }
 
-    public String generateEnum(CompilationUnit cu) {
+    public String generateEnum(EnumDeclaration enumDeclaration) {
         StringBuilder enumBuilder = new StringBuilder();
-        cu.getPrimaryTypeName().ifPresent(className -> {
-            enumBuilder.append("enum ").append(className).append(" {\n");
-            AtomicInteger index = new AtomicInteger(0);
-            cu.findAll(EnumConstantDeclaration.class).forEach(enumConstant -> {
-                enumBuilder.append(String.format("  %s = %d;\n", enumConstant.getNameAsString(), index.getAndIncrement()));
-            });
-            enumBuilder.append("}\n\n");
+        enumBuilder.append("enum ").append(enumDeclaration.getNameAsString()).append(" {\n");
+        AtomicInteger index = new AtomicInteger(0);
+        enumDeclaration.getEntries().forEach(enumConstant -> {
+            enumBuilder.append(String.format("  %s = %d;\n", enumConstant.getNameAsString(), index.getAndIncrement()));
         });
+        enumBuilder.append("}\n\n");
         return enumBuilder.toString();
     }
 
-    public Set<String> getImports(CompilationUnit cu, List<CompilationUnit> enumCus) {
+    public Set<String> getImports(CompilationUnit cu, List<EnumDeclaration> enumDeclarations) {
         Set<String> imports = new TreeSet<>();
-        cu.findAll(FieldDeclaration.class).forEach(field -> {
+        cu.findAll(FieldDeclaration.class).stream()
+                .filter(field -> !field.isStatic()) // Filter out static fields
+                .filter(field -> field.getParentNode().isPresent() && field.getParentNode().get().equals(cu.getPrimaryType().get()))
+                .forEach(field -> {
             for (VariableDeclarator variable : field.getVariables()) {
                 String fieldType = variable.getType().asString();
                 List<String> importTypes = getImportTypes(fieldType);
 
                 for (String importType : importTypes) {
-                    if (isEnum(importType, enumCus)) {
-                        imports.add(importType + ".proto");
+                    if (isEnum(importType, enumDeclarations)) {
+                        if (importType.contains(".")) {
+                            String parentName = importType.substring(0, importType.lastIndexOf('.'));
+                            if (!cu.getPrimaryTypeName().map(name -> name.equals(parentName)).orElse(false)) {
+                                imports.add(parentName + ".proto");
+                            }
+                        } else {
+                            imports.add(importType + ".proto");
+                        }
                     } else if (!isPrimitive(importType)) {
                         switch (importType) {
                             case "Instant":
@@ -138,21 +177,21 @@ public class ProtoGenerator {
         return imports;
     }
 
-    private String getProtoType(String javaType, List<CompilationUnit> enumCus) {
+    private String getProtoType(String javaType, List<EnumDeclaration> enumDeclarations) {
         if (javaType.startsWith("List<")) {
             String nestedType = javaType.substring(5, javaType.length() - 1);
-            return "repeated " + getProtoType(nestedType, enumCus);
+            return "repeated " + getProtoType(nestedType, enumDeclarations);
         }
         if (javaType.matches("(Map|HashMap|LinkedHashMap|TreeMap)<.*,.*>")) {
             Pattern pattern = Pattern.compile("<(.*),(.*)>");
             Matcher matcher = pattern.matcher(javaType);
             if (matcher.find()) {
-                String keyType = getProtoType(matcher.group(1).trim(), enumCus);
-                String valueType = getProtoType(matcher.group(2).trim(), enumCus);
+                String keyType = getProtoType(matcher.group(1).trim(), enumDeclarations);
+                String valueType = getProtoType(matcher.group(2).trim(), enumDeclarations);
                 return String.format("map<%s, %s>", keyType, valueType);
             }
         }
-        if (isEnum(javaType, enumCus)) {
+        if (isEnum(javaType, enumDeclarations)) {
             return javaType;
         }
         switch (javaType) {
@@ -211,12 +250,14 @@ public class ProtoGenerator {
         }
     }
 
-    private boolean isEnum(String javaType, List<CompilationUnit> enumCus) {
-        if (enumCus == null) {
+    private boolean isEnum(String javaType, List<EnumDeclaration> enumDeclarations) {
+        if (enumDeclarations == null) {
             return false;
         }
-        return enumCus.stream()
-                .anyMatch(cu -> cu.getPrimaryTypeName().map(name -> name.equals(javaType)).orElse(false));
+        return enumDeclarations.stream()
+                .anyMatch(e -> e.getFullyQualifiedName().map(name -> name.endsWith("." + javaType) || name.equals(javaType)).orElse(false) ||
+                               e.getNameAsString().equals(javaType)
+                );
     }
 
     private List<String> getImportTypes(String javaType) {
