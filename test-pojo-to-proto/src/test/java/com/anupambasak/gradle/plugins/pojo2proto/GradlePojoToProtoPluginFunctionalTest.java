@@ -19,6 +19,8 @@ package com.anupambasak.gradle.plugins.pojo2proto;
 import com.anupambasak.gradle.dtos.Address;
 import com.anupambasak.gradle.dtos.PersonPojo;
 import com.anupambasak.gradle.dtos.TimePojo;
+import com.anupambasak.gradle.testenums.EnumPojo;
+import com.anupambasak.gradle.testenums.TestEnum;
 import com.google.protobuf.Timestamp;
 import com.google.protobuf.util.Timestamps;
 import org.junit.jupiter.api.Assertions;
@@ -209,6 +211,21 @@ class GradlePojoToProtoPluginFunctionalTest {
         assertEquals(timePojo.getPeriods().get(0).toString(), timeProto.getPeriods(0));
 
         assertNotNull(timeProto.toByteArray());
+    }
+
+    @Test
+    void verifyProtoFromEnumPojo() {
+        // Create EnumPojo
+        EnumPojo enumPojo = new EnumPojo();
+        enumPojo.setTestEnum(TestEnum.VALUE2);
+
+        // Create Proto from EnumPojo
+        com.anupambasak.gradle.proto.EnumPojo enumProto = com.anupambasak.gradle.proto.EnumPojo.newBuilder()
+                .setTestEnum(com.anupambasak.gradle.proto.TestEnum.VALUE2)
+                .build();
+
+        // Assert values
+        assertEquals(enumPojo.getTestEnum().name(), enumProto.getTestEnum().name());
     }
 }
 
