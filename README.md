@@ -28,7 +28,7 @@ To use the plugin, apply it in your `build.gradle` file:
 
 ```gradle
 plugins {
-    id 'pojo-to-proto'
+    id 'com.anupambasak.pojo-to-proto'
 }
 ```
 
