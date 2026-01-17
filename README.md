@@ -1,4 +1,4 @@
-# Gradle POJO to Proto Plugin
+# POJO to Proto Gradle Plugin
 
 A Gradle plugin to generate Protobuf (.proto) files from Java POJO classes.
 
