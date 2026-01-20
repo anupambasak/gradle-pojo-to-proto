@@ -53,8 +53,8 @@ dependencies {
     // If you need to IMPORT these protos in your own .proto files
     protobuf("com.google.api.grpc:proto-google-common-protos:2.63.2")
 
-    compileOnly 'org.projectlombok:lombok:1.18.34'
-    annotationProcessor 'org.projectlombok:lombok:1.18.34'
+    compileOnly 'org.projectlombok:lombok:1.18.42'
+    annotationProcessor 'org.projectlombok:lombok:1.18.42'
 
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.12.1'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.12.1'
