@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.anupambasak.gradle.plugins.pojo2proto;
+package io.github.anupambasak.gradle.plugins.pojo2proto;
 
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;

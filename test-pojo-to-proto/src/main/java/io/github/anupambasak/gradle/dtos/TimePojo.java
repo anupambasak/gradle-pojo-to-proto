@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.anupambasak.gradle.dtos;
+package io.github.anupambasak.gradle.dtos;
 
 import lombok.Data;
 

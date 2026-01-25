@@ -1,6 +1,5 @@
-package com.anupambasak.gradle.testenums;
+package io.github.anupambasak.gradle.testenums;
 
-import com.anupambasak.gradle.testenums.Conts;
 import lombok.Data;
 
 @Data

@@ -14,10 +14,9 @@
  * limitations under the License.
  */
 
-package com.anupambasak.gradle.plugins.pojo2proto;
+package io.github.anupambasak.gradle.plugins.pojo2proto;
 
 import com.github.javaparser.ast.CompilationUnit;
-import com.github.javaparser.ast.body.EnumConstantDeclaration;
 import com.github.javaparser.ast.body.EnumDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
@@ -29,7 +28,6 @@ import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 public class ProtoGenerator {
 

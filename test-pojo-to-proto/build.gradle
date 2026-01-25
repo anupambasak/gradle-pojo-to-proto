@@ -7,7 +7,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath "com.anupambasak.pojo-to-proto:plugin:0.1.1"
+        classpath "io.github.anupambasak.gradle-pojo-to-proto:plugin:0.1.1"
     }
 }
 
@@ -18,7 +18,7 @@ plugins{
 ext.protobufVersion = "3.25.8"
 
 
-apply plugin: 'com.anupambasak.pojo-to-proto'
+apply plugin: 'io.github.anupambasak.gradle-pojo-to-proto'
 apply plugin: 'java-library'
 
 protobuf {

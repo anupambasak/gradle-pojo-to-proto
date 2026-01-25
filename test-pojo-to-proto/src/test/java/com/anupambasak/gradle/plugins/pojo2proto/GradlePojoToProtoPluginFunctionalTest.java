@@ -16,14 +16,15 @@
 
 package com.anupambasak.gradle.plugins.pojo2proto;
 
-import com.anupambasak.gradle.dtos.Address;
-import com.anupambasak.gradle.dtos.PersonPojo;
-import com.anupambasak.gradle.dtos.TimePojo;
-import com.anupambasak.gradle.testenums.Conts;
-import com.anupambasak.gradle.testenums.EnumPojo;
-import com.anupambasak.gradle.testenums.TestEnum;
+import io.github.anupambasak.gradle.dtos.Address;
+import io.github.anupambasak.gradle.dtos.PersonPojo;
+import io.github.anupambasak.gradle.dtos.TimePojo;
+import io.github.anupambasak.gradle.testenums.Conts;
+import io.github.anupambasak.gradle.testenums.EnumPojo;
+import io.github.anupambasak.gradle.testenums.TestEnum;
 import com.google.protobuf.Timestamp;
 import com.google.protobuf.util.Timestamps;
+import io.github.anupambasak.gradle.dtos.MapPojo;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
@@ -310,7 +311,7 @@ class GradlePojoToProtoPluginFunctionalTest {
         addressPojo.setZipCode(54321);
 
         // Create MapPojo
-        com.anupambasak.gradle.dtos.MapPojo mapPojo = new com.anupambasak.gradle.dtos.MapPojo();
+        MapPojo mapPojo = new MapPojo();
         mapPojo.setSimpleMap(Collections.singletonMap("one", 1));
         mapPojo.setComplexMap(Collections.singletonMap("home", addressPojo));
 

@@ -4,7 +4,7 @@ plugins {
     id 'com.gradle.plugin-publish' version '2.0.0'
 }
 
-group = 'com.anupambasak.pojo-to-proto'
+group = 'io.github.anupambasak.gradle-pojo-to-proto'
 version = '0.1.1'
 
 repositories {
@@ -43,8 +43,8 @@ gradlePlugin {
     vcsUrl.set("https://github.com/anupambasak/gradle-pojo-to-proto")
     plugins {
         pojoToProto {
-            id = 'com.anupambasak.pojo-to-proto'
-            implementationClass = 'com.anupambasak.gradle.plugins.pojo2proto.GradlePojoToProtoPlugin'
+            id = 'io.github.anupambasak.gradle-pojo-to-proto'
+            implementationClass = 'io.github.anupambasak.gradle.plugins.pojo2proto.GradlePojoToProtoPlugin'
             displayName = 'POJO to Proto Gradle Plugin'
             description = 'A Gradle plugin to generate proto files from POJOs.'
             tags = ["java", "pojo", "protobuf", "proto", "pojo-to-proto", "proto-files"]

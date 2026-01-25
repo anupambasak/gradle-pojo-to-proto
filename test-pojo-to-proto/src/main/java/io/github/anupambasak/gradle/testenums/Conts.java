@@ -1,4 +1,4 @@
-package com.anupambasak.gradle.testenums;
+package io.github.anupambasak.gradle.testenums;
 
 import java.util.EnumSet;
 import java.util.HashMap;

@@ -14,13 +14,18 @@
  * limitations under the License.
  */
 
-package com.anupambasak.gradle.dtos;
+package io.github.anupambasak.gradle.plugins.pojo2proto;
 
-import lombok.Data;
+import org.gradle.api.file.ConfigurableFileCollection;
+import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.provider.Property;
 
-@Data
-public class Address {
-    private String street;
-    private String city;
-    private int zipCode;
+import java.util.List;
+
+public abstract class PojoToProtoExtension {
+    public abstract ConfigurableFileCollection getSource();
+    public abstract DirectoryProperty getDestination();
+    public abstract Property<Boolean> getSingleFile();
+    public abstract Property<String> getPackageName();
+    public abstract Property<List<String>> getExcludeFields();
 }

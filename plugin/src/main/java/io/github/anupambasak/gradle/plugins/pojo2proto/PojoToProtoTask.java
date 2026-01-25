@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package com.anupambasak.gradle.plugins.pojo2proto;
+package io.github.anupambasak.gradle.plugins.pojo2proto;
 
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;

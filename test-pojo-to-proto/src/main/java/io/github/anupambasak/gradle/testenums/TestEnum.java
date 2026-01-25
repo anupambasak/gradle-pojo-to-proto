@@ -1,4 +1,4 @@
-package com.anupambasak.gradle.testenums;
+package io.github.anupambasak.gradle.testenums;
 
 public enum TestEnum {
     VALUE1,

@@ -14,20 +14,13 @@
  * limitations under the License.
  */
 
-package com.anupambasak.gradle.dtos;
+package io.github.anupambasak.gradle.dtos;
 
 import lombok.Data;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.util.List;
-
 @Data
-public class PersonPojo {
-    private String name;
-    private int age;
-    private Address address;
-    private List<Address> previousAddresses;
-    private Instant createdAt;
-    private LocalDateTime dob;
+public class Address {
+    private String street;
+    private String city;
+    private int zipCode;
 }
