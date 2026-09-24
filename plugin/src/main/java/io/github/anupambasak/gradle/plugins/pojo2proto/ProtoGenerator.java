@@ -180,6 +180,10 @@ public class ProtoGenerator {
             String nestedType = javaType.substring(5, javaType.length() - 1);
             return "repeated " + getProtoType(nestedType, enumDeclarations);
         }
+        if(javaType.startsWith("ArrayList<")){
+            String nestedType = javaType.substring(10, javaType.length() - 1);
+            return "repeated " + getProtoType(nestedType, enumDeclarations);
+        }
         if (javaType.matches("(Map|HashMap|LinkedHashMap|TreeMap)<.*,.*>")) {
             Pattern pattern = Pattern.compile("<(.*),(.*)>");
             Matcher matcher = pattern.matcher(javaType);
@@ -260,7 +264,12 @@ public class ProtoGenerator {
 
     private List<String> getImportTypes(String javaType) {
         if (javaType.startsWith("List<")) {
-            return getImportTypes(javaType.substring(5, javaType.length() - 1));
+            final List<String> l = getImportTypes(javaType.substring(5, javaType.length() - 1));
+            return l;
+        }
+        if(javaType.startsWith("ArrayList<")){
+            final List<String> l = getImportTypes(javaType.substring(10, javaType.length() - 1));
+            return l;
         }
         if (javaType.matches("(Map|HashMap|LinkedHashMap|TreeMap)<.*,.*>")) {
             Pattern pattern = Pattern.compile("<(.*),(.*)>");

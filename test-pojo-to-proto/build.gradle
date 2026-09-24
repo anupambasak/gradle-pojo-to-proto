@@ -77,8 +77,8 @@ testing {
 }
 
 pojoToProto {
-    source.from(project.layout.projectDirectory.dir("src/main/java/com/anupambasak/gradle/dtos"))
-    source.from(project.layout.projectDirectory.dir("src/main/java/com/anupambasak/gradle/testenums"))
+    source.from(project.layout.projectDirectory.dir("src/main/java/io/github/anupambasak/gradle/dtos"))
+    source.from(project.layout.projectDirectory.dir("src/main/java/io/github/anupambasak/gradle/testenums"))
     destination = project.layout.projectDirectory.dir("src/main/proto")
     packageName = "com.anupambasak.gradle.proto"
 }

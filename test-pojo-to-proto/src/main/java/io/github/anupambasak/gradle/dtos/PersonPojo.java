@@ -20,6 +20,7 @@ import lombok.Data;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
@@ -28,6 +29,7 @@ public class PersonPojo {
     private int age;
     private Address address;
     private List<Address> previousAddresses;
+    private ArrayList<Address> addressesHome;
     private Instant createdAt;
     private LocalDateTime dob;
 }
