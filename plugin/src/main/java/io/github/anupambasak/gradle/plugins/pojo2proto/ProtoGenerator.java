@@ -31,6 +31,16 @@ import java.util.regex.Pattern;
 
 public class ProtoGenerator {
 
+    private final boolean prefixEnumNames;
+
+    public ProtoGenerator() {
+        this(false);
+    }
+
+    public ProtoGenerator(boolean prefixEnumNames) {
+        this.prefixEnumNames = prefixEnumNames;
+    }
+
     public String generateHeader(String packageName, Set<String> imports) {
         StringBuilder headerBuilder = new StringBuilder();
         headerBuilder.append("syntax = \"proto3\";\n\n");
@@ -119,10 +129,30 @@ public class ProtoGenerator {
         enumBuilder.append("enum ").append(enumDeclaration.getNameAsString()).append(" {\n");
         AtomicInteger index = new AtomicInteger(0);
         enumDeclaration.getEntries().forEach(enumConstant -> {
-            enumBuilder.append(String.format("  %s = %d;\n", enumConstant.getNameAsString(), index.getAndIncrement()));
+            enumBuilder.append(String.format("  %s = %d;\n", enumValueName(enumDeclaration, enumConstant.getNameAsString()), index.getAndIncrement()));
         });
         enumBuilder.append("}\n\n");
         return enumBuilder.toString();
+    }
+
+    /**
+     * Returns the proto enum value name. When {@code prefixEnumNames} is enabled, the value is prefixed
+     * with the enum's name in UPPER_SNAKE_CASE (e.g. {@code OrderStatus.ACTIVE -> ORDER_STATUS_ACTIVE}),
+     * following the protobuf style guide and avoiding value-name clashes between enums in the same package.
+     */
+    String enumValueName(EnumDeclaration enumDeclaration, String constantName) {
+        if (!prefixEnumNames) {
+            return constantName;
+        }
+        String prefix = toUpperSnakeCase(enumDeclaration.getNameAsString()) + "_";
+        return constantName.startsWith(prefix) ? constantName : prefix + constantName;
+    }
+
+    static String toUpperSnakeCase(String name) {
+        return name
+                .replaceAll("([a-z0-9])([A-Z])", "$1_$2")
+                .replaceAll("([A-Z]+)([A-Z][a-z])", "$1_$2")
+                .toUpperCase();
     }
 
     public Set<String> getImports(CompilationUnit cu, List<EnumDeclaration> enumDeclarations) {

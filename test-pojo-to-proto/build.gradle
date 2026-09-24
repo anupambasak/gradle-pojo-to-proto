@@ -7,7 +7,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath "io.github.anupambasak.gradle-pojo-to-proto:plugin:0.1.1"
+        classpath "io.github.anupambasak.gradle-pojo-to-proto:plugin:0.1.2"
     }
 }
 
@@ -80,6 +80,7 @@ pojoToProto {
     source.from(project.layout.projectDirectory.dir("src/main/java/io/github/anupambasak/gradle/dtos"))
     source.from(project.layout.projectDirectory.dir("src/main/java/io/github/anupambasak/gradle/testenums"))
     destination = project.layout.projectDirectory.dir("src/main/proto")
+    prefixEnumNames = true
     packageName = "com.anupambasak.gradle.proto"
 }
 

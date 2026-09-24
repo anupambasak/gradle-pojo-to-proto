@@ -26,6 +26,7 @@ public abstract class PojoToProtoExtension {
     public abstract ConfigurableFileCollection getSource();
     public abstract DirectoryProperty getDestination();
     public abstract Property<Boolean> getSingleFile();
+    public abstract Property<Boolean> getPrefixEnumNames();
     public abstract Property<String> getPackageName();
     public abstract Property<List<String>> getExcludeFields();
 }

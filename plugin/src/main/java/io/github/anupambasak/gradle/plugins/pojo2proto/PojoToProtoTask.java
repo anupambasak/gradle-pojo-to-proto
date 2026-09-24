@@ -53,6 +53,10 @@ public abstract class PojoToProtoTask extends DefaultTask {
 
     @Input
     @Optional
+    public abstract Property<Boolean> getPrefixEnumNames();
+
+    @Input
+    @Optional
     public abstract Property<String> getPackageName();
 
     @Input
@@ -63,7 +67,7 @@ public abstract class PojoToProtoTask extends DefaultTask {
 
     @TaskAction
     public void execute() {
-        ProtoGenerator protoGenerator = new ProtoGenerator();
+        ProtoGenerator protoGenerator = new ProtoGenerator(getPrefixEnumNames().getOrElse(false));
         File destinationDirFile = getDestination().get().getAsFile();
         boolean singleFile = getSingleFile().getOrElse(false);
         String packageName = getPackageName().getOrElse(getProjectGroup().get());
@@ -126,46 +130,47 @@ public abstract class PojoToProtoTask extends DefaultTask {
             } catch (IOException e) {
                 getLogger().error("Error writing proto file", e);
             }
-                        } else {
-                            List<com.github.javaparser.ast.body.EnumDeclaration> allEnumDeclarations = new ArrayList<>();
-                            for (CompilationUnit cu : cus) {
-                                allEnumDeclarations.addAll(cu.findAll(com.github.javaparser.ast.body.EnumDeclaration.class));
-                            }
-                
-                            for (CompilationUnit cu : cus) {
-                                if (cu.getPrimaryType().isPresent() && cu.getPrimaryType().get().isClassOrInterfaceDeclaration() && !cu.getPrimaryType().get().isEnumDeclaration()) {
-                                    List<com.github.javaparser.ast.body.EnumDeclaration> nestedEnums = cu.getPrimaryType().get().findAll(com.github.javaparser.ast.body.EnumDeclaration.class);
-                
-                                    Set<String> imports = protoGenerator.getImports(cu, allEnumDeclarations);
-                                    String header = protoGenerator.generateHeader(packageName, imports);
-                                    String message = protoGenerator.generateMessageWithNestedEnums(cu, nestedEnums, allEnumDeclarations);
-                                    String protoContent = header + message;
-                
-                                    cu.getPrimaryTypeName().ifPresent(className -> {
-                                        try {
-                                            Path protoFilePath = Paths.get(destinationDirFile.getAbsolutePath(), className + ".proto");
-                                            Files.write(protoFilePath, protoContent.getBytes());
-                                            getLogger().lifecycle("Generated " + protoFilePath);
-                                        } catch (IOException e) {
-                                            getLogger().error("Error writing proto file", e);
-                                        }
-                                    });
-                                }
-                            }
-                            for (com.github.javaparser.ast.body.EnumDeclaration enumDeclaration : allEnumDeclarations) {
-                                if (enumDeclaration.getParentNode().isPresent() && enumDeclaration.getParentNode().get() instanceof CompilationUnit) {
-                                    String header = protoGenerator.generateHeader(packageName, new TreeSet<>());
-                                    String enumContent = protoGenerator.generateEnum(enumDeclaration);
-                                    String protoContent = header + enumContent;
-                
-                                    try {
-                                        Path protoFilePath = Paths.get(destinationDirFile.getAbsolutePath(), enumDeclaration.getNameAsString() + ".proto");
-                                        Files.write(protoFilePath, protoContent.getBytes());
-                                        getLogger().lifecycle("Generated " + protoFilePath);
-                                    } catch (IOException e) {
-                                        getLogger().error("Error writing proto file", e);
-                                    }
-                                }
-                            }
-                        }    }
+        } else {
+            List<com.github.javaparser.ast.body.EnumDeclaration> allEnumDeclarations = new ArrayList<>();
+            for (CompilationUnit cu : cus) {
+                allEnumDeclarations.addAll(cu.findAll(com.github.javaparser.ast.body.EnumDeclaration.class));
+            }
+
+            for (CompilationUnit cu : cus) {
+                if (cu.getPrimaryType().isPresent() && cu.getPrimaryType().get().isClassOrInterfaceDeclaration() && !cu.getPrimaryType().get().isEnumDeclaration()) {
+                    List<com.github.javaparser.ast.body.EnumDeclaration> nestedEnums = cu.getPrimaryType().get().findAll(com.github.javaparser.ast.body.EnumDeclaration.class);
+
+                    Set<String> imports = protoGenerator.getImports(cu, allEnumDeclarations);
+                    String header = protoGenerator.generateHeader(packageName, imports);
+                    String message = protoGenerator.generateMessageWithNestedEnums(cu, nestedEnums, allEnumDeclarations);
+                    String protoContent = header + message;
+
+                    cu.getPrimaryTypeName().ifPresent(className -> {
+                        try {
+                            Path protoFilePath = Paths.get(destinationDirFile.getAbsolutePath(), className + ".proto");
+                            Files.write(protoFilePath, protoContent.getBytes());
+                            getLogger().lifecycle("Generated " + protoFilePath);
+                        } catch (IOException e) {
+                            getLogger().error("Error writing proto file", e);
+                        }
+                    });
+                }
+            }
+            for (com.github.javaparser.ast.body.EnumDeclaration enumDeclaration : allEnumDeclarations) {
+                if (enumDeclaration.getParentNode().isPresent() && enumDeclaration.getParentNode().get() instanceof CompilationUnit) {
+                    String header = protoGenerator.generateHeader(packageName, new TreeSet<>());
+                    String enumContent = protoGenerator.generateEnum(enumDeclaration);
+                    String protoContent = header + enumContent;
+
+                    try {
+                        Path protoFilePath = Paths.get(destinationDirFile.getAbsolutePath(), enumDeclaration.getNameAsString() + ".proto");
+                        Files.write(protoFilePath, protoContent.getBytes());
+                        getLogger().lifecycle("Generated " + protoFilePath);
+                    } catch (IOException e) {
+                        getLogger().error("Error writing proto file", e);
+                    }
+                }
+            }
+        }
+    }
 }
