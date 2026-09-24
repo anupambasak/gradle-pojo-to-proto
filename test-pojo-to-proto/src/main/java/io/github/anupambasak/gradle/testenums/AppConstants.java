@@ -20,10 +20,10 @@ import java.util.EnumSet;
 import java.util.HashMap;
 
 /**
- * Enums packed inside an interface. They are generated inside PnrConstants.proto and must be
- * referenced from other messages as {@code PnrConstants.<Enum>}.
+ * Enums packed inside an interface. They are generated inside AppConstants.proto and must be
+ * referenced from other messages as {@code AppConstants.<Enum>}.
  */
-public interface PnrConstants {
+public interface AppConstants {
 
     enum TxnType {
         BOOKING(0),
@@ -53,21 +53,21 @@ public interface PnrConstants {
         }
     }
 
-    enum PnrStatus {
+    enum RecordStatus {
         FLUSHED(0),
         BOOKED(1);
 
-        private static final HashMap<Integer, PnrStatus> val = new HashMap<>();
+        private static final HashMap<Integer, RecordStatus> val = new HashMap<>();
 
         static {
-            for (PnrStatus a : EnumSet.allOf(PnrStatus.class)) {
+            for (RecordStatus a : EnumSet.allOf(RecordStatus.class)) {
                 val.put(a.value, a);
             }
         }
 
         private final Integer value;
 
-        PnrStatus(Integer value) {
+        RecordStatus(Integer value) {
             this.value = value;
         }
 
@@ -75,7 +75,7 @@ public interface PnrConstants {
             return value;
         }
 
-        public static PnrStatus valueOf(Integer value) {
+        public static RecordStatus valueOf(Integer value) {
             return val.get(value);
         }
     }

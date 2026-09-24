@@ -25,6 +25,7 @@ import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.Period;
 import java.time.ZonedDateTime;
+import java.util.Date;
 import java.util.List;
 
 @Data
@@ -43,4 +44,7 @@ public class TimePojo {
     private List<LocalTime> localTimes;
     private List<Duration> durations;
     private List<Period> periods;
+    private Date date;
+    private List<Date> dates;
+    private java.util.Date qualifiedDate;
 }

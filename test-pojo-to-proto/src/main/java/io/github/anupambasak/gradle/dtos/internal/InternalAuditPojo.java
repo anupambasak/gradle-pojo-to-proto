@@ -14,22 +14,13 @@
  * limitations under the License.
  */
 
-package io.github.anupambasak.gradle.dtos;
+package io.github.anupambasak.gradle.dtos.internal;
 
-import io.github.anupambasak.gradle.testenums.PnrConstants;
-import io.github.anupambasak.gradle.testenums.PnrConstants.TxnType;
 import lombok.Data;
 
-import java.util.List;
-
-/**
- * Uses enums nested in {@link PnrConstants} both by simple (imported) name and by qualified name,
- * from a different package than the one declaring them.
- */
+/** Lives in an excluded directory: no InternalAuditPojo.proto must be generated. */
 @Data
-public class PnrSessionPojo {
-    private int sessionSrlNumber;
-    private TxnType txnType;
-    private PnrConstants.PnrStatus pnrStatus;
-    private List<TxnType> txnHistory;
+public class InternalAuditPojo {
+    private String auditedBy;
+    private long auditedAt;
 }

@@ -27,6 +27,7 @@ public class GradlePojoToProtoPlugin implements Plugin<Project> {
 
         project.getTasks().register("pojoToProto", PojoToProtoTask.class, task -> {
             task.getSource().from(extension.getSource());
+            task.getExclude().from(extension.getExclude());
             task.getDestination().set(extension.getDestination());
             task.getSingleFile().set(extension.getSingleFile());
             task.getPrefixEnumNames().set(extension.getPrefixEnumNames());

@@ -32,11 +32,11 @@ import static org.junit.jupiter.api.Assertions.*;
  */
 class ProtoGeneratorNestedEnumReferenceTest {
 
-    private static final String PNR_CONSTANTS = """
+    private static final String APP_CONSTANTS = """
             package com.example.constants;
-            public interface PnrConstants {
+            public interface AppConstants {
                 enum TxnType { BOOKING, CANCELLATION }
-                enum PnrStatus { FLUSHED, BOOKED }
+                enum RecordStatus { FLUSHED, BOOKED }
             }
             """;
 
@@ -57,59 +57,59 @@ class ProtoGeneratorNestedEnumReferenceTest {
 
     @Test
     void simpleNameFromSingleTypeImportIsQualified() {
-        CompilationUnit constants = ProtoGeneratorEnumPrefixTest.parse(PNR_CONSTANTS);
+        CompilationUnit constants = ProtoGeneratorEnumPrefixTest.parse(APP_CONSTANTS);
         CompilationUnit dto = ProtoGeneratorEnumPrefixTest.parse("""
                 package com.example.dto;
-                import com.example.constants.PnrConstants.TxnType;
-                public class PnrSessionDto { private TxnType txnType; }
+                import com.example.constants.AppConstants.TxnType;
+                public class SessionDto { private TxnType txnType; }
                 """);
         List<EnumDeclaration> enums = allEnums(constants, dto);
 
-        assertTrue(message(dto, enums).contains("  PnrConstants.TxnType txnType = 1;"));
+        assertTrue(message(dto, enums).contains("  AppConstants.TxnType txnType = 1;"));
         Set<String> imports = generator.getImports(dto, enums);
-        assertTrue(imports.contains("PnrConstants.proto"));
+        assertTrue(imports.contains("AppConstants.proto"));
         assertFalse(imports.contains("TxnType.proto"), "no TxnType.proto is generated for a nested enum");
     }
 
     @Test
     void qualifiedNameIsKept() {
-        CompilationUnit constants = ProtoGeneratorEnumPrefixTest.parse(PNR_CONSTANTS);
+        CompilationUnit constants = ProtoGeneratorEnumPrefixTest.parse(APP_CONSTANTS);
         CompilationUnit dto = ProtoGeneratorEnumPrefixTest.parse("""
                 package com.example.dto;
-                import com.example.constants.PnrConstants;
-                public class PnrSessionDto { private PnrConstants.PnrStatus status; }
+                import com.example.constants.AppConstants;
+                public class SessionDto { private AppConstants.RecordStatus status; }
                 """);
         List<EnumDeclaration> enums = allEnums(constants, dto);
 
-        assertTrue(message(dto, enums).contains("  PnrConstants.PnrStatus status = 1;"));
-        assertEquals(Set.of("PnrConstants.proto"), generator.getImports(dto, enums));
+        assertTrue(message(dto, enums).contains("  AppConstants.RecordStatus status = 1;"));
+        assertEquals(Set.of("AppConstants.proto"), generator.getImports(dto, enums));
     }
 
     @Test
     void wildcardAndStaticImportsAreResolved() {
-        CompilationUnit constants = ProtoGeneratorEnumPrefixTest.parse(PNR_CONSTANTS);
+        CompilationUnit constants = ProtoGeneratorEnumPrefixTest.parse(APP_CONSTANTS);
         CompilationUnit dto = ProtoGeneratorEnumPrefixTest.parse("""
                 package com.example.dto;
-                import com.example.constants.PnrConstants.*;
-                import static com.example.constants.PnrConstants.PnrStatus;
-                public class PnrSessionDto { private TxnType txnType; private PnrStatus status; }
+                import com.example.constants.AppConstants.*;
+                import static com.example.constants.AppConstants.RecordStatus;
+                public class SessionDto { private TxnType txnType; private RecordStatus status; }
                 """);
         List<EnumDeclaration> enums = allEnums(constants, dto);
 
         String message = message(dto, enums);
-        assertTrue(message.contains("  PnrConstants.TxnType txnType = 1;"));
-        assertTrue(message.contains("  PnrConstants.PnrStatus status = 2;"));
-        assertEquals(Set.of("PnrConstants.proto"), generator.getImports(dto, enums));
+        assertTrue(message.contains("  AppConstants.TxnType txnType = 1;"));
+        assertTrue(message.contains("  AppConstants.RecordStatus status = 2;"));
+        assertEquals(Set.of("AppConstants.proto"), generator.getImports(dto, enums));
     }
 
     @Test
     void collectionsAndMapsOfNestedEnumsAreQualified() {
-        CompilationUnit constants = ProtoGeneratorEnumPrefixTest.parse(PNR_CONSTANTS);
+        CompilationUnit constants = ProtoGeneratorEnumPrefixTest.parse(APP_CONSTANTS);
         CompilationUnit dto = ProtoGeneratorEnumPrefixTest.parse("""
                 package com.example.dto;
                 import java.util.*;
-                import com.example.constants.PnrConstants.TxnType;
-                public class PnrSessionDto {
+                import com.example.constants.AppConstants.TxnType;
+                public class SessionDto {
                     private List<TxnType> history;
                     private Map<String, TxnType> byId;
                 }
@@ -117,13 +117,13 @@ class ProtoGeneratorNestedEnumReferenceTest {
         List<EnumDeclaration> enums = allEnums(constants, dto);
 
         String message = message(dto, enums);
-        assertTrue(message.contains("  repeated PnrConstants.TxnType history = 1;"));
-        assertTrue(message.contains("  map<string, PnrConstants.TxnType> byId = 2;"));
+        assertTrue(message.contains("  repeated AppConstants.TxnType history = 1;"));
+        assertTrue(message.contains("  map<string, AppConstants.TxnType> byId = 2;"));
     }
 
     @Test
     void sameSimpleNameInDifferentOuterTypesIsDisambiguatedByImport() {
-        CompilationUnit pnr = ProtoGeneratorEnumPrefixTest.parse(PNR_CONSTANTS);
+        CompilationUnit appConstants = ProtoGeneratorEnumPrefixTest.parse(APP_CONSTANTS);
         CompilationUnit other = ProtoGeneratorEnumPrefixTest.parse("""
                 package com.example.other;
                 public interface OtherConstants { enum TxnType { X, Y } }
@@ -133,7 +133,7 @@ class ProtoGeneratorNestedEnumReferenceTest {
                 import com.example.other.OtherConstants.TxnType;
                 public class Dto { private TxnType txnType; }
                 """);
-        List<EnumDeclaration> enums = allEnums(pnr, other, dto);
+        List<EnumDeclaration> enums = allEnums(appConstants, other, dto);
 
         assertTrue(message(dto, enums).contains("  OtherConstants.TxnType txnType = 1;"));
         assertEquals(Set.of("OtherConstants.proto"), generator.getImports(dto, enums));
@@ -163,14 +163,70 @@ class ProtoGeneratorNestedEnumReferenceTest {
 
     @Test
     void singleFileModeUsesFlatNamesBecauseAllEnumsAreTopLevel() {
-        CompilationUnit constants = ProtoGeneratorEnumPrefixTest.parse(PNR_CONSTANTS);
+        CompilationUnit constants = ProtoGeneratorEnumPrefixTest.parse(APP_CONSTANTS);
         CompilationUnit dto = ProtoGeneratorEnumPrefixTest.parse("""
                 package com.example.dto;
-                import com.example.constants.PnrConstants;
-                public class PnrSessionDto { private PnrConstants.TxnType txnType; }
+                import com.example.constants.AppConstants;
+                public class SessionDto { private AppConstants.TxnType txnType; }
                 """);
         List<EnumDeclaration> enums = allEnums(constants, dto);
 
         assertTrue(generator.generateMessage(dto, enums).contains("  TxnType txnType = 1;"));
+    }
+
+    @Test
+    void nestedTypeOutsideSourcesImportsOuterTypeFile() {
+        // AccountingConstants lives in another package that is not part of the configured sources,
+        // so the generator cannot tell SiteId is an enum; it must still import the outer type's file.
+        CompilationUnit dto = ProtoGeneratorEnumPrefixTest.parse("""
+                package com.example.dto;
+                import com.example.accounting.AccountingConstants;
+                public class Payment { private AccountingConstants.SiteId siteId; }
+                """);
+        List<EnumDeclaration> enums = allEnums(dto);
+
+        assertTrue(message(dto, enums).contains("  AccountingConstants.SiteId siteId = 1;"));
+        Set<String> imports = generator.getImports(dto, enums);
+        assertEquals(Set.of("AccountingConstants.proto"), imports);
+        assertFalse(imports.contains("AccountingConstants.SiteId.proto"));
+    }
+
+    @Test
+    void fullyQualifiedTypeOutsideSourcesDropsJavaPackage() {
+        CompilationUnit dto = ProtoGeneratorEnumPrefixTest.parse("""
+                package com.example.dto;
+                public class Payment { private com.example.accounting.AccountingConstants.SiteId siteId; }
+                """);
+        List<EnumDeclaration> enums = allEnums(dto);
+
+        assertTrue(message(dto, enums).contains("  AccountingConstants.SiteId siteId = 1;"));
+        assertEquals(Set.of("AccountingConstants.proto"), generator.getImports(dto, enums));
+    }
+
+    @Test
+    void nestedEnumInAnotherPackageInsideSourcesIsResolved() {
+        CompilationUnit constants = ProtoGeneratorEnumPrefixTest.parse("""
+                package com.example.accounting;
+                public interface AccountingConstants { enum SiteId { NORTH, SOUTH } }
+                """);
+        CompilationUnit dto = ProtoGeneratorEnumPrefixTest.parse("""
+                package com.example.dto;
+                import com.example.accounting.AccountingConstants;
+                public class Payment { private AccountingConstants.SiteId siteId; }
+                """);
+        List<EnumDeclaration> enums = allEnums(constants, dto);
+
+        assertTrue(message(dto, enums).contains("  AccountingConstants.SiteId siteId = 1;"));
+        assertEquals(Set.of("AccountingConstants.proto"), generator.getImports(dto, enums));
+    }
+
+    @Test
+    void protoFileAndPackageStripping() {
+        assertEquals("Outer.Inner", ProtoGenerator.stripPackage("com.example.Outer.Inner"));
+        assertEquals("Outer.Inner", ProtoGenerator.stripPackage("Outer.Inner"));
+        assertEquals("Address", ProtoGenerator.stripPackage("Address"));
+        assertEquals("Outer.proto", ProtoGenerator.protoFileFor("com.example.Outer.Inner"));
+        assertEquals("Outer.proto", ProtoGenerator.protoFileFor("Outer.Inner"));
+        assertEquals("Address.proto", ProtoGenerator.protoFileFor("Address"));
     }
 }

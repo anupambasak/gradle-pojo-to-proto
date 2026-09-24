@@ -98,7 +98,7 @@ class ProtoGeneratorEnumPrefixTest {
         assertEquals("ORDER_STATUS", ProtoGenerator.toUpperSnakeCase("OrderStatus"));
         assertEquals("STATUS", ProtoGenerator.toUpperSnakeCase("Status"));
         assertEquals("HTTP_METHOD", ProtoGenerator.toUpperSnakeCase("HTTPMethod"));
-        assertEquals("PNR_V2_TYPE", ProtoGenerator.toUpperSnakeCase("PnrV2Type"));
+        assertEquals("API_V2_TYPE", ProtoGenerator.toUpperSnakeCase("ApiV2Type"));
         assertEquals("TEST_ENUM", ProtoGenerator.toUpperSnakeCase("TestEnum"));
         assertEquals("B", ProtoGenerator.toUpperSnakeCase("b"));
     }

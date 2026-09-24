@@ -34,15 +34,22 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public abstract class PojoToProtoTask extends DefaultTask {
 
     @InputFiles
     public abstract ConfigurableFileCollection getSource();
+
+    /** Directories or files to leave out of {@link #getSource()}; subdirectories of an excluded directory are excluded too. */
+    @InputFiles
+    @Optional
+    public abstract ConfigurableFileCollection getExclude();
 
     @OutputDirectory
     public abstract DirectoryProperty getDestination();
@@ -72,31 +79,23 @@ public abstract class PojoToProtoTask extends DefaultTask {
         boolean singleFile = getSingleFile().getOrElse(false);
         String packageName = getPackageName().getOrElse(getProjectGroup().get());
 
+        List<Path> excludedPaths = getExclude().getFiles().stream()
+                .map(f -> f.toPath().toAbsolutePath().normalize())
+                .collect(Collectors.toList());
+
         List<CompilationUnit> cus = new ArrayList<>();
-        for (File javaFile : getSource()) {
-            if (javaFile.isFile() && javaFile.getName().endsWith(".java")) {
-                try {
-                    cus.add(StaticJavaParser.parse(javaFile));
-                } catch (IOException e) {
-                    getLogger().error("Error parsing file: " + javaFile.getName(), e);
-                }
-            } else if (javaFile.isDirectory()) {
-                try {
-                    Files.walk(javaFile.toPath())
-                            .filter(Files::isRegularFile)
-                            .filter(p -> p.toString().endsWith(".java"))
-                            .forEach(p -> {
-                                try {
-                                    cus.add(StaticJavaParser.parse(p));
-                                } catch (IOException e) {
-                                    getLogger().error("Error parsing file: " + p.getFileName().toString(), e);
-                                }
-                            });
-                } catch (IOException e) {
-                    getLogger().error("Error reading java files from directory: " + javaFile.getAbsolutePath(), e);
-                }
+        for (Path javaFile : collectJavaFiles(excludedPaths)) {
+            try {
+                cus.add(StaticJavaParser.parse(javaFile));
+            } catch (IOException e) {
+                getLogger().error("Error parsing file: " + javaFile.getFileName(), e);
             }
         }
+
+        // Assign proto names; types whose names clash (case-insensitively) are prefixed with their package
+        protoGenerator.registerTypes(cus).forEach((javaName, protoName) ->
+                getLogger().warn("pojoToProto: '" + javaName + "' clashes with another type of the same name "
+                        + "(ignoring case); generated as '" + protoName + "'"));
 
         if (singleFile) {
             List<com.github.javaparser.ast.body.EnumDeclaration> allEnumDeclarations = new ArrayList<>();
@@ -104,24 +103,30 @@ public abstract class PojoToProtoTask extends DefaultTask {
                 allEnumDeclarations.addAll(cu.findAll(com.github.javaparser.ast.body.EnumDeclaration.class));
             }
 
+            // Generate the body first: wrapper messages (e.g. for Map<String, List<X>>) are discovered on the way
+            String messages = protoGenerator.generateMessages(cus, allEnumDeclarations);
+            String enums = protoGenerator.generateEnums(allEnumDeclarations);
+            StringBuilder wrappers = new StringBuilder();
             Set<String> allImports = new TreeSet<>();
+            for (ProtoGenerator.WrapperMessage wrapper : protoGenerator.getTopLevelWrappers()) {
+                wrappers.append(protoGenerator.generateWrapperMessage(wrapper));
+                allImports.addAll(wrapper.getImports());
+            }
             for (CompilationUnit cu : cus) {
                 allImports.addAll(protoGenerator.getImports(cu, allEnumDeclarations));
             }
 
-            Set<String> allTypeNames = cus.stream()
-                    .flatMap(cu -> cu.getPrimaryTypeName().stream())
-                    .collect(Collectors.toSet());
+            // Everything lives in this one file, so only external imports (google/...) remain
+            Set<String> allTypeNames = protoGenerator.registeredProtoNames();
             allTypeNames.addAll(allEnumDeclarations.stream()
                     .map(com.github.javaparser.ast.body.EnumDeclaration::getNameAsString)
                     .collect(Collectors.toSet()));
+            protoGenerator.getTopLevelWrappers().forEach(w -> allTypeNames.add(w.getName()));
 
             allImports.removeIf(anImport -> allTypeNames.contains(anImport.replace(".proto", "")));
 
             String header = protoGenerator.generateHeader(packageName, allImports);
-            String messages = protoGenerator.generateMessages(cus, allEnumDeclarations);
-            String enums = protoGenerator.generateEnums(allEnumDeclarations);
-            String protoContent = header + messages + enums;
+            String protoContent = header + messages + enums + wrappers;
 
             try {
                 Path protoFilePath = Paths.get(destinationDirFile.getAbsolutePath(), getProjectName().get() + ".proto");
@@ -145,7 +150,7 @@ public abstract class PojoToProtoTask extends DefaultTask {
                     String message = protoGenerator.generateMessageWithNestedEnums(cu, nestedEnums, allEnumDeclarations);
                     String protoContent = header + message;
 
-                    cu.getPrimaryTypeName().ifPresent(className -> {
+                    cu.getPrimaryType().map(protoGenerator::protoName).ifPresent(className -> {
                         try {
                             Path protoFilePath = Paths.get(destinationDirFile.getAbsolutePath(), className + ".proto");
                             Files.write(protoFilePath, protoContent.getBytes());
@@ -163,7 +168,7 @@ public abstract class PojoToProtoTask extends DefaultTask {
                     String protoContent = header + enumContent;
 
                     try {
-                        Path protoFilePath = Paths.get(destinationDirFile.getAbsolutePath(), enumDeclaration.getNameAsString() + ".proto");
+                        Path protoFilePath = Paths.get(destinationDirFile.getAbsolutePath(), protoGenerator.protoName(enumDeclaration) + ".proto");
                         Files.write(protoFilePath, protoContent.getBytes());
                         getLogger().lifecycle("Generated " + protoFilePath);
                     } catch (IOException e) {
@@ -171,6 +176,61 @@ public abstract class PojoToProtoTask extends DefaultTask {
                     }
                 }
             }
+            // Wrapper messages for collections that protobuf cannot repeat directly, e.g. the value of a
+            // Map<String, List<MyPojo>> becomes MyPojoList { repeated MyPojo items = 1; } in MyPojoList.proto
+            for (ProtoGenerator.WrapperMessage wrapper : protoGenerator.getTopLevelWrappers()) {
+                String protoContent = protoGenerator.generateHeader(packageName, wrapper.getImports())
+                        + protoGenerator.generateWrapperMessage(wrapper);
+                try {
+                    Path protoFilePath = Paths.get(destinationDirFile.getAbsolutePath(), wrapper.getName() + ".proto");
+                    Files.write(protoFilePath, protoContent.getBytes());
+                    getLogger().lifecycle("Generated " + protoFilePath);
+                } catch (IOException e) {
+                    getLogger().error("Error writing proto file", e);
+                }
+            }
         }
+    }
+
+    /**
+     * Collects the .java files from {@link #getSource()} (files, or directories walked recursively),
+     * skipping any file that is, or is inside, one of the excluded paths.
+     */
+    List<Path> collectJavaFiles(List<Path> excludedPaths) {
+        Set<Path> javaFiles = new LinkedHashSet<>();
+        for (File sourceEntry : getSource()) {
+            Path sourcePath = sourceEntry.toPath().toAbsolutePath().normalize();
+            if (Files.isRegularFile(sourcePath) && sourcePath.toString().endsWith(".java")) {
+                javaFiles.add(sourcePath);
+            } else if (Files.isDirectory(sourcePath)) {
+                try (Stream<Path> walk = Files.walk(sourcePath)) {
+                    walk.filter(Files::isRegularFile)
+                            .filter(p -> p.toString().endsWith(".java"))
+                            .map(p -> p.toAbsolutePath().normalize())
+                            .forEach(javaFiles::add);
+                } catch (IOException e) {
+                    getLogger().error("Error reading java files from directory: " + sourcePath, e);
+                }
+            }
+        }
+        List<Path> included = new ArrayList<>();
+        for (Path javaFile : javaFiles) {
+            if (isExcluded(javaFile, excludedPaths)) {
+                getLogger().info("Excluded " + javaFile);
+            } else {
+                included.add(javaFile);
+            }
+        }
+        return included;
+    }
+
+    static boolean isExcluded(Path javaFile, List<Path> excludedPaths) {
+        for (Path excluded : excludedPaths) {
+            // Path.startsWith compares whole name elements, so "dtos" does not match "dtos2"
+            if (javaFile.startsWith(excluded)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

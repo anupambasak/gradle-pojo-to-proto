@@ -24,6 +24,8 @@ import java.util.List;
 
 public abstract class PojoToProtoExtension {
     public abstract ConfigurableFileCollection getSource();
+    /** Directories or files to skip. Any .java file under an excluded directory (or equal to an excluded file) is ignored. */
+    public abstract ConfigurableFileCollection getExclude();
     public abstract DirectoryProperty getDestination();
     public abstract Property<Boolean> getSingleFile();
     public abstract Property<Boolean> getPrefixEnumNames();

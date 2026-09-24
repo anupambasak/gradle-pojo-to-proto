@@ -79,6 +79,8 @@ testing {
 pojoToProto {
     source.from(project.layout.projectDirectory.dir("src/main/java/io/github/anupambasak/gradle/dtos"))
     source.from(project.layout.projectDirectory.dir("src/main/java/io/github/anupambasak/gradle/testenums"))
+    exclude.from(project.layout.projectDirectory.dir("src/main/java/io/github/anupambasak/gradle/dtos/internal"))
+    exclude.from(project.layout.projectDirectory.file("src/main/java/io/github/anupambasak/gradle/dtos/LegacyPojo.java"))
     destination = project.layout.projectDirectory.dir("src/main/proto")
     prefixEnumNames = true
     packageName = "com.anupambasak.gradle.proto"

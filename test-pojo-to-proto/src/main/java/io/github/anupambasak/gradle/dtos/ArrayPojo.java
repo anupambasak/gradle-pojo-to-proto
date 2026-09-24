@@ -1,0 +1,29 @@
+/*
+ * Copyright 2026 the project's contributors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+package io.github.anupambasak.gradle.dtos;
+
+import lombok.Data;
+
+/** Java arrays, in both declaration styles, become repeated proto fields; byte[] becomes bytes. */
+@Data
+public class ArrayPojo {
+    private Address primaryAddress;
+    private Address otherAddresses[];   // C-style array declaration
+    private String[] tags;
+    private int[] scores;
+    private byte[] payload;
+}
