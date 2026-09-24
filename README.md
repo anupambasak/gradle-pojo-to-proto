@@ -12,8 +12,11 @@ A Gradle plugin to generate Protobuf (.proto) files from Java POJO classes.
     *   `java.time.Duration` -> `google.protobuf.Duration`
     *   `java.time.Period` -> `string`
     *   `java.util.UUID` -> `string`
+    *   `short`/`Short`, `byte`/`Byte` -> `int32`
+    *   `char`/`Character` -> `string`
+    *   `byte[]` -> `bytes`
 *   **Nested Objects:** Handles nested POJOs by generating separate `.proto` files and adding the necessary import statements.
-*   **Enums:** Supports simple and nested enums. Nested enums are generated within their parent message. Enum value names can optionally be prefixed with the enum name (`prefixEnumNames`), following the Protobuf style guide.
+*   **Enums:** Supports simple and nested enums. Nested enums are generated within their parent message. Enums nested in another class or interface (e.g. a `PnrConstants` interface holding shared enums) are referenced as `PnrConstants.TxnType` with `import "PnrConstants.proto";`, whether the Java field uses the simple imported name (`TxnType`), the qualified name, a wildcard or a static import. Enum value names can optionally be prefixed with the enum name (`prefixEnumNames`), following the Protobuf style guide.
 *   **File Generation Modes:**
     *   **Multi-file:** Generates one `.proto` file for each POJO and top-level enum (default).
     *   **Single-file:** Aggregates all generated messages and enums into a single `.proto` file.

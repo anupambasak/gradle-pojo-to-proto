@@ -17,12 +17,16 @@
 package io.github.anupambasak.gradle.plugins.pojo2proto;
 
 import com.github.javaparser.ast.CompilationUnit;
+import com.github.javaparser.ast.ImportDeclaration;
+import com.github.javaparser.ast.Node;
 import com.github.javaparser.ast.body.EnumDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
+import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -78,7 +82,7 @@ public class ProtoGenerator {
                 for (VariableDeclarator variable : field.getVariables()) {
                     String fieldName = variable.getNameAsString();
                     String fieldType = variable.getType().asString();
-                    String protoType = getProtoType(fieldType, enumDeclarations);
+                    String protoType = getProtoType(fieldType, enumDeclarations, cu, false);
                     messageBuilder.append(String.format("  %s %s = %d;\n", protoType, fieldName, index.getAndIncrement()));
                 }
             });
@@ -106,7 +110,7 @@ public class ProtoGenerator {
                             for (VariableDeclarator variable : field.getVariables()) {
                                 String fieldName = variable.getNameAsString();
                                 String fieldType = variable.getType().asString();
-                                String protoType = getProtoType(fieldType, allEnums);
+                                String protoType = getProtoType(fieldType, allEnums, cu, true);
                                 messageBuilder.append(String.format("  %s %s = %d;\n", protoType, fieldName, index.getAndIncrement()));
                             }
                         });
@@ -166,14 +170,12 @@ public class ProtoGenerator {
                 List<String> importTypes = getImportTypes(fieldType);
 
                 for (String importType : importTypes) {
-                    if (isEnum(importType, enumDeclarations)) {
-                        if (importType.contains(".")) {
-                            String parentName = importType.substring(0, importType.lastIndexOf('.'));
-                            if (!cu.getPrimaryTypeName().map(name -> name.equals(parentName)).orElse(false)) {
-                                imports.add(parentName + ".proto");
-                            }
-                        } else {
-                            imports.add(importType + ".proto");
+                    Optional<EnumDeclaration> enumDeclaration = resolveEnum(importType, cu, enumDeclarations);
+                    if (enumDeclaration.isPresent()) {
+                        // Nested enums are generated inside their outermost type's .proto file
+                        String outerTypeName = outermostTypeName(enumDeclaration.get());
+                        if (!cu.getPrimaryTypeName().map(outerTypeName::equals).orElse(false)) {
+                            imports.add(outerTypeName + ".proto");
                         }
                     } else if (!isPrimitive(importType)) {
                         switch (importType) {
@@ -205,26 +207,31 @@ public class ProtoGenerator {
         return imports;
     }
 
-    private String getProtoType(String javaType, List<EnumDeclaration> enumDeclarations) {
+    /**
+     * @param qualifyNestedEnums {@code true} when nested enums are generated inside their outer type's message
+     *                           (multi-file mode), so references must be qualified as {@code Outer.Enum}.
+     */
+    private String getProtoType(String javaType, List<EnumDeclaration> enumDeclarations, CompilationUnit cu, boolean qualifyNestedEnums) {
         if (javaType.startsWith("List<")) {
             String nestedType = javaType.substring(5, javaType.length() - 1);
-            return "repeated " + getProtoType(nestedType, enumDeclarations);
+            return "repeated " + getProtoType(nestedType, enumDeclarations, cu, qualifyNestedEnums);
         }
         if(javaType.startsWith("ArrayList<")){
             String nestedType = javaType.substring(10, javaType.length() - 1);
-            return "repeated " + getProtoType(nestedType, enumDeclarations);
+            return "repeated " + getProtoType(nestedType, enumDeclarations, cu, qualifyNestedEnums);
         }
         if (javaType.matches("(Map|HashMap|LinkedHashMap|TreeMap)<.*,.*>")) {
             Pattern pattern = Pattern.compile("<(.*),(.*)>");
             Matcher matcher = pattern.matcher(javaType);
             if (matcher.find()) {
-                String keyType = getProtoType(matcher.group(1).trim(), enumDeclarations);
-                String valueType = getProtoType(matcher.group(2).trim(), enumDeclarations);
+                String keyType = getProtoType(matcher.group(1).trim(), enumDeclarations, cu, qualifyNestedEnums);
+                String valueType = getProtoType(matcher.group(2).trim(), enumDeclarations, cu, qualifyNestedEnums);
                 return String.format("map<%s, %s>", keyType, valueType);
             }
         }
-        if (isEnum(javaType, enumDeclarations)) {
-            return javaType;
+        Optional<EnumDeclaration> enumDeclaration = resolveEnum(javaType, cu, enumDeclarations);
+        if (enumDeclaration.isPresent()) {
+            return protoEnumTypeName(enumDeclaration.get(), cu, qualifyNestedEnums);
         }
         switch (javaType) {
             case "String":
@@ -232,7 +239,17 @@ public class ProtoGenerator {
                 return "string";
             case "int":
             case "Integer":
+            case "short":
+            case "Short":
+            case "byte":
+            case "Byte":
                 return "int32";
+            case "char":
+            case "Character":
+                return "string";
+            case "byte[]":
+            case "Byte[]":
+                return "bytes";
             case "long":
             case "Long":
                 return "int64";
@@ -268,6 +285,14 @@ public class ProtoGenerator {
             case "UUID":
             case "int":
             case "Integer":
+            case "short":
+            case "Short":
+            case "byte":
+            case "Byte":
+            case "char":
+            case "Character":
+            case "byte[]":
+            case "Byte[]":
             case "long":
             case "Long":
             case "double":
@@ -282,14 +307,91 @@ public class ProtoGenerator {
         }
     }
 
-    private boolean isEnum(String javaType, List<EnumDeclaration> enumDeclarations) {
-        if (enumDeclarations == null) {
-            return false;
+    /**
+     * Resolves the enum a Java field type refers to, as seen from the given compilation unit.
+     * Handles simple names ({@code TxnType}), qualified names ({@code PnrConstants.TxnType}) and fully
+     * qualified names. When several enums share a name, the compilation unit's own nested enums, then its
+     * imports (single-type, on-demand and static), then its package are used to pick the right one.
+     */
+    Optional<EnumDeclaration> resolveEnum(String javaType, CompilationUnit cu, List<EnumDeclaration> enumDeclarations) {
+        if (enumDeclarations == null || enumDeclarations.isEmpty()) {
+            return Optional.empty();
         }
-        return enumDeclarations.stream()
-                .anyMatch(e -> e.getFullyQualifiedName().map(name -> name.endsWith("." + javaType) || name.equals(javaType)).orElse(false) ||
-                               e.getNameAsString().equals(javaType)
-                );
+        List<EnumDeclaration> candidates = new ArrayList<>();
+        for (EnumDeclaration e : enumDeclarations) {
+            String fqn = e.getFullyQualifiedName().orElse(e.getNameAsString());
+            if (fqn.equals(javaType) || fqn.endsWith("." + javaType)) {
+                candidates.add(e);
+            }
+        }
+        if (candidates.size() <= 1 || cu == null) {
+            return candidates.stream().findFirst();
+        }
+
+        // 1. Declared in this compilation unit
+        for (EnumDeclaration e : candidates) {
+            if (e.findCompilationUnit().map(c -> c == cu).orElse(false)) {
+                return Optional.of(e);
+            }
+        }
+        // 2. Brought in by an import
+        String firstSegment = javaType.contains(".") ? javaType.substring(0, javaType.indexOf('.')) : javaType;
+        for (ImportDeclaration imp : cu.getImports()) {
+            String name = imp.getNameAsString();
+            String target;
+            if (imp.isAsterisk()) {
+                target = name + "." + javaType;
+            } else if (name.equals(firstSegment) || name.endsWith("." + firstSegment)) {
+                target = name + javaType.substring(firstSegment.length());
+            } else {
+                continue;
+            }
+            Optional<EnumDeclaration> match = findByFqn(candidates, target);
+            if (match.isPresent()) {
+                return match;
+            }
+        }
+        // 3. Same package
+        String pkg = cu.getPackageDeclaration().map(pd -> pd.getNameAsString() + ".").orElse("");
+        Optional<EnumDeclaration> samePackage = findByFqn(candidates, pkg + javaType);
+        return samePackage.isPresent() ? samePackage : candidates.stream().findFirst();
+    }
+
+    private static Optional<EnumDeclaration> findByFqn(List<EnumDeclaration> candidates, String fqn) {
+        return candidates.stream()
+                .filter(e -> e.getFullyQualifiedName().map(fqn::equals).orElse(false))
+                .findFirst();
+    }
+
+    /**
+     * Name of the outermost type enclosing the enum (the enum itself if it is top level). That type's
+     * {@code .proto} file is where the enum is generated.
+     */
+    static String outermostTypeName(EnumDeclaration enumDeclaration) {
+        String name = enumDeclaration.getNameAsString();
+        Node node = enumDeclaration.getParentNode().orElse(null);
+        while (node != null && !(node instanceof CompilationUnit)) {
+            if (node instanceof TypeDeclaration<?> typeDeclaration) {
+                name = typeDeclaration.getNameAsString();
+            }
+            node = node.getParentNode().orElse(null);
+        }
+        return name;
+    }
+
+    /**
+     * Proto type name used to reference the enum from a message in {@code cu}. Nested enums are emitted
+     * inside their outermost type's message, so they are referenced as {@code Outer.Enum}
+     * (e.g. {@code PnrConstants.TxnType}), except from within that same message.
+     */
+    static String protoEnumTypeName(EnumDeclaration enumDeclaration, CompilationUnit cu, boolean qualifyNestedEnums) {
+        String enumName = enumDeclaration.getNameAsString();
+        String outer = outermostTypeName(enumDeclaration);
+        if (!qualifyNestedEnums || outer.equals(enumName)
+                || (cu != null && cu.getPrimaryTypeName().map(outer::equals).orElse(false))) {
+            return enumName;
+        }
+        return outer + "." + enumName;
     }
 
     private List<String> getImportTypes(String javaType) {

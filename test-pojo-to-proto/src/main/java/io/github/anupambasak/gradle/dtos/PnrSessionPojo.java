@@ -16,21 +16,20 @@
 
 package io.github.anupambasak.gradle.dtos;
 
+import io.github.anupambasak.gradle.testenums.PnrConstants;
+import io.github.anupambasak.gradle.testenums.PnrConstants.TxnType;
 import lombok.Data;
 
-import java.time.Instant;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Uses enums nested in {@link PnrConstants} both by simple (imported) name and by qualified name,
+ * from a different package than the one declaring them.
+ */
 @Data
-public class PersonPojo {
-    private String name;
-    private int age;
-    private short weight;
-    private Address address;
-    private List<Address> previousAddresses;
-    private ArrayList<Address> addressesHome;
-    private Instant createdAt;
-    private LocalDateTime dob;
+public class PnrSessionPojo {
+    private int sessionSrlNumber;
+    private TxnType txnType;
+    private PnrConstants.PnrStatus pnrStatus;
+    private List<TxnType> txnHistory;
 }

@@ -7,7 +7,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath "io.github.anupambasak.gradle-pojo-to-proto:plugin:0.1.2"
+        classpath "io.github.anupambasak.gradle-pojo-to-proto:plugin:0.1.3"
     }
 }
 

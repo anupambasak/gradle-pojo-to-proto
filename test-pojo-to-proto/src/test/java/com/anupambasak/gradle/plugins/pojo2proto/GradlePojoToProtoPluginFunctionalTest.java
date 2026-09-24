@@ -18,9 +18,11 @@ package com.anupambasak.gradle.plugins.pojo2proto;
 
 import io.github.anupambasak.gradle.dtos.Address;
 import io.github.anupambasak.gradle.dtos.PersonPojo;
+import io.github.anupambasak.gradle.dtos.PnrSessionPojo;
 import io.github.anupambasak.gradle.dtos.TimePojo;
 import io.github.anupambasak.gradle.testenums.Conts;
 import io.github.anupambasak.gradle.testenums.EnumPojo;
+import io.github.anupambasak.gradle.testenums.PnrConstants;
 import io.github.anupambasak.gradle.testenums.TestEnum;
 import com.google.protobuf.Timestamp;
 import com.google.protobuf.util.Timestamps;
@@ -32,6 +34,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.*;
 import java.util.Collections;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -55,11 +58,13 @@ class GradlePojoToProtoPluginFunctionalTest {
         assertTrue(personPojoProtoContent.contains("message PersonPojo {"));
         assertTrue(personPojoProtoContent.contains("  string name = 1;"));
         assertTrue(personPojoProtoContent.contains("  int32 age = 2;"));
-        assertTrue(personPojoProtoContent.contains("  Address address = 3;"));
-        assertTrue(personPojoProtoContent.contains("  repeated Address previousAddresses = 4;"));
-        assertTrue(personPojoProtoContent.contains("  repeated Address addressesHome = 5;"));
-        assertTrue(personPojoProtoContent.contains("  google.protobuf.Timestamp createdAt = 6;"));
-        assertTrue(personPojoProtoContent.contains("  google.protobuf.Timestamp dob = 7;"));
+        assertTrue(personPojoProtoContent.contains("  int32 weight = 3;"));
+        assertFalse(personPojoProtoContent.contains("import \"short.proto\";"), "Java primitives must not be imported");
+        assertTrue(personPojoProtoContent.contains("  Address address = 4;"));
+        assertTrue(personPojoProtoContent.contains("  repeated Address previousAddresses = 5;"));
+        assertTrue(personPojoProtoContent.contains("  repeated Address addressesHome = 6;"));
+        assertTrue(personPojoProtoContent.contains("  google.protobuf.Timestamp createdAt = 7;"));
+        assertTrue(personPojoProtoContent.contains("  google.protobuf.Timestamp dob = 8;"));
     }
 
     @Test
@@ -124,19 +129,20 @@ class GradlePojoToProtoPluginFunctionalTest {
             assertFalse(contsProtoContent.contains("import \"BerthType.proto\";")); // No incorrect import
             assertTrue(contsProtoContent.contains("message Conts {"));
             assertTrue(contsProtoContent.contains("enum b {"));
-            assertTrue(contsProtoContent.contains("  c = 0;"));
-            assertTrue(contsProtoContent.contains("  d = 1;"));
-            assertTrue(contsProtoContent.contains("  e = 2;"));
-            assertTrue(contsProtoContent.contains("  f = 3;"));
-            assertTrue(contsProtoContent.contains("  g = 4;"));
-            assertTrue(contsProtoContent.contains("  h = 5;"));
-            assertTrue(contsProtoContent.contains("  i = 6;"));
-            assertTrue(contsProtoContent.contains("  j = 7;"));
-            assertTrue(contsProtoContent.contains("  k = 8;"));
-            assertTrue(contsProtoContent.contains("  l = 9;"));
-            assertTrue(contsProtoContent.contains("  m = 10;"));
-            assertTrue(contsProtoContent.contains("  n = 11;"));
-            assertTrue(contsProtoContent.contains("  o = 12;"));
+            assertTrue(contsProtoContent.contains("  B_c = 0;"));
+            assertTrue(contsProtoContent.contains("  B_d = 1;"));
+            assertTrue(contsProtoContent.contains("  B_e = 2;"));
+            assertTrue(contsProtoContent.contains("  B_f = 3;"));
+            assertTrue(contsProtoContent.contains("  B_g = 4;"));
+            assertTrue(contsProtoContent.contains("  B_h = 5;"));
+            assertTrue(contsProtoContent.contains("  B_i = 6;"));
+            assertTrue(contsProtoContent.contains("  B_j = 7;"));
+            assertTrue(contsProtoContent.contains("  B_k = 8;"));
+            assertTrue(contsProtoContent.contains("  B_l = 9;"));
+            assertTrue(contsProtoContent.contains("  B_m = 10;"));
+            assertTrue(contsProtoContent.contains("  B_n = 11;"));
+            assertTrue(contsProtoContent.contains("  B_o = 12;"));
+            assertFalse(contsProtoContent.contains("  c = 0;"), "nested enum values should be prefixed when prefixEnumNames = true");
         }
 
 
@@ -165,9 +171,10 @@ class GradlePojoToProtoPluginFunctionalTest {
         assertTrue(testEnumProtoContent.contains("option java_package = \"com.anupambasak.gradle.proto\";"));
         assertTrue(testEnumProtoContent.contains("option java_multiple_files = true;"));
         assertTrue(testEnumProtoContent.contains("enum TestEnum {"));
-        assertTrue(testEnumProtoContent.contains("  VALUE1 = 0;"));
-        assertTrue(testEnumProtoContent.contains("  VALUE2 = 1;"));
-        assertTrue(testEnumProtoContent.contains("  VALUE3 = 2;"));
+        assertTrue(testEnumProtoContent.contains("  TEST_ENUM_VALUE1 = 0;"));
+        assertTrue(testEnumProtoContent.contains("  TEST_ENUM_VALUE2 = 1;"));
+        assertTrue(testEnumProtoContent.contains("  TEST_ENUM_VALUE3 = 2;"));
+        assertFalse(testEnumProtoContent.contains("  VALUE1 = 0;"), "enum values should be prefixed when prefixEnumNames = true");
     }
 
     @Test
@@ -182,6 +189,7 @@ class GradlePojoToProtoPluginFunctionalTest {
         PersonPojo personPojo = new PersonPojo();
         personPojo.setName("John Doe");
         personPojo.setAge(30);
+        personPojo.setWeight((short) 70);
         personPojo.setAddress(addressPojo);
         personPojo.setPreviousAddresses(Collections.singletonList(addressPojo));
         personPojo.setCreatedAt(Instant.now());
@@ -197,6 +205,7 @@ class GradlePojoToProtoPluginFunctionalTest {
         com.anupambasak.gradle.proto.PersonPojo personProto = com.anupambasak.gradle.proto.PersonPojo.newBuilder()
                 .setName(personPojo.getName())
                 .setAge(personPojo.getAge())
+                .setWeight(personPojo.getWeight())
                 .setAddress(addressProto)
                 .addPreviousAddresses(addressProto)
                 .setCreatedAt(Timestamps.fromMillis(personPojo.getCreatedAt().toEpochMilli()))
@@ -206,6 +215,7 @@ class GradlePojoToProtoPluginFunctionalTest {
         // Assert values
         assertEquals(personPojo.getName(), personProto.getName());
         assertEquals(personPojo.getAge(), personProto.getAge());
+        assertEquals(personPojo.getWeight(), personProto.getWeight());
         assertEquals(addressPojo.getStreet(), personProto.getAddress().getStreet());
         assertEquals(addressPojo.getCity(), personProto.getAddress().getCity());
         assertEquals(addressPojo.getZipCode(), personProto.getAddress().getZipCode());
@@ -295,13 +305,64 @@ class GradlePojoToProtoPluginFunctionalTest {
 
         // Create Proto from EnumPojo
         com.anupambasak.gradle.proto.EnumPojo enumProto = com.anupambasak.gradle.proto.EnumPojo.newBuilder()
-                .setTestEnum(com.anupambasak.gradle.proto.TestEnum.VALUE2)
-                .setBerthType(com.anupambasak.gradle.proto.Conts.b.c)
+                .setTestEnum(com.anupambasak.gradle.proto.TestEnum.TEST_ENUM_VALUE2)
+                .setBerthType(com.anupambasak.gradle.proto.Conts.b.B_c)
                 .build();
 
-        // Assert values
-        assertEquals(enumPojo.getTestEnum().name(), enumProto.getTestEnum().name());
-        assertEquals(enumPojo.getBerthType().name(), enumProto.getBerthType().name());
+        // Assert values (proto enum values carry the enum-name prefix; ordinals line up with the Java enum)
+        assertEquals("TEST_ENUM_" + enumPojo.getTestEnum().name(), enumProto.getTestEnum().name());
+        assertEquals("B_" + enumPojo.getBerthType().name(), enumProto.getBerthType().name());
+        assertEquals(enumPojo.getTestEnum().ordinal(), enumProto.getTestEnum().getNumber());
+        assertEquals(enumPojo.getBerthType().ordinal(), enumProto.getBerthType().getNumber());
+    }
+
+    @Test
+    void verifyNestedInterfaceEnumsAreReferencedQualified() throws IOException {
+        Path sessionProtoPath = Path.of(protoDir, "PnrSessionPojo.proto");
+        assertTrue(Files.exists(sessionProtoPath), "PnrSessionPojo.proto should be generated");
+
+        String sessionProto = Files.readString(sessionProtoPath);
+        assertTrue(sessionProto.contains("import \"PnrConstants.proto\";"));
+        assertFalse(sessionProto.contains("import \"TxnType.proto\";"), "nested enums have no .proto file of their own");
+        assertFalse(sessionProto.contains("import \"PnrStatus.proto\";"), "nested enums have no .proto file of their own");
+        assertTrue(sessionProto.contains("message PnrSessionPojo {"));
+        assertTrue(sessionProto.contains("  int32 sessionSrlNumber = 1;"));
+        assertTrue(sessionProto.contains("  PnrConstants.TxnType txnType = 2;"));
+        assertTrue(sessionProto.contains("  PnrConstants.PnrStatus pnrStatus = 3;"));
+        assertTrue(sessionProto.contains("  repeated PnrConstants.TxnType txnHistory = 4;"));
+
+        Path constantsProtoPath = Path.of(protoDir, "PnrConstants.proto");
+        assertTrue(Files.exists(constantsProtoPath), "PnrConstants.proto should be generated");
+        String constantsProto = Files.readString(constantsProtoPath);
+        assertTrue(constantsProto.contains("message PnrConstants {"));
+        assertTrue(constantsProto.contains("enum TxnType {"));
+        assertTrue(constantsProto.contains("  TXN_TYPE_BOOKING = 0;"));
+        assertTrue(constantsProto.contains("enum PnrStatus {"));
+        assertTrue(constantsProto.contains("  PNR_STATUS_FLUSHED = 0;"));
+        assertFalse(Files.exists(Path.of(protoDir, "TxnType.proto")));
+    }
+
+    @Test
+    void verifyProtoFromPnrSessionPojo() {
+        PnrSessionPojo pojo = new PnrSessionPojo();
+        pojo.setSessionSrlNumber(42);
+        pojo.setTxnType(PnrConstants.TxnType.CANCELLATION);
+        pojo.setPnrStatus(PnrConstants.PnrStatus.BOOKED);
+        pojo.setTxnHistory(List.of(PnrConstants.TxnType.BOOKING, PnrConstants.TxnType.CANCELLATION));
+
+        com.anupambasak.gradle.proto.PnrSessionPojo proto = com.anupambasak.gradle.proto.PnrSessionPojo.newBuilder()
+                .setSessionSrlNumber(pojo.getSessionSrlNumber())
+                .setTxnType(com.anupambasak.gradle.proto.PnrConstants.TxnType.forNumber(pojo.getTxnType().ordinal()))
+                .setPnrStatus(com.anupambasak.gradle.proto.PnrConstants.PnrStatus.forNumber(pojo.getPnrStatus().ordinal()))
+                .addTxnHistory(com.anupambasak.gradle.proto.PnrConstants.TxnType.TXN_TYPE_BOOKING)
+                .addTxnHistory(com.anupambasak.gradle.proto.PnrConstants.TxnType.TXN_TYPE_CANCELLATION)
+                .build();
+
+        assertEquals(42, proto.getSessionSrlNumber());
+        assertEquals(com.anupambasak.gradle.proto.PnrConstants.TxnType.TXN_TYPE_CANCELLATION, proto.getTxnType());
+        assertEquals(com.anupambasak.gradle.proto.PnrConstants.PnrStatus.PNR_STATUS_BOOKED, proto.getPnrStatus());
+        assertEquals(2, proto.getTxnHistoryCount());
+        assertNotNull(proto.toByteArray());
     }
 
     @Test
