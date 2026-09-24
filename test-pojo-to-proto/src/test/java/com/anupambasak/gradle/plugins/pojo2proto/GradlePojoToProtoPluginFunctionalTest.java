@@ -57,7 +57,9 @@ class GradlePojoToProtoPluginFunctionalTest {
         assertTrue(personPojoProtoContent.contains("  int32 age = 2;"));
         assertTrue(personPojoProtoContent.contains("  Address address = 3;"));
         assertTrue(personPojoProtoContent.contains("  repeated Address previousAddresses = 4;"));
-        assertTrue(personPojoProtoContent.contains("  google.protobuf.Timestamp createdAt = 5;"));
+        assertTrue(personPojoProtoContent.contains("  repeated Address addressesHome = 5;"));
+        assertTrue(personPojoProtoContent.contains("  google.protobuf.Timestamp createdAt = 6;"));
+        assertTrue(personPojoProtoContent.contains("  google.protobuf.Timestamp dob = 7;"));
     }
 
     @Test
