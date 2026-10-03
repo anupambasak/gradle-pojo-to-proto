@@ -25,6 +25,25 @@ import io.github.anupambasak.gradle.testenums.Conts;
 import io.github.anupambasak.gradle.testenums.EnumPojo;
 import io.github.anupambasak.gradle.testenums.AppConstants;
 import io.github.anupambasak.gradle.testenums.TestEnum;
+import io.github.anupambasak.gradle.dtos.billing.proto.PriceDetailDtoProto;
+import io.github.anupambasak.gradle.dtos.catalog.proto.PriceDetailDTOProto;
+import io.github.anupambasak.gradle.dtos.proto.AddressListProto;
+import io.github.anupambasak.gradle.dtos.proto.AddressProto;
+import io.github.anupambasak.gradle.dtos.proto.ApiResponseProto;
+import io.github.anupambasak.gradle.dtos.proto.ArrayPojoProto;
+import io.github.anupambasak.gradle.dtos.proto.CollectionPojoProto;
+import io.github.anupambasak.gradle.dtos.proto.GroupedPojoProto;
+import io.github.anupambasak.gradle.dtos.proto.MapPojoProto;
+import io.github.anupambasak.gradle.dtos.proto.PersonPojoProto;
+import io.github.anupambasak.gradle.dtos.proto.PriceSummaryPojoProto;
+import io.github.anupambasak.gradle.dtos.proto.ResponseEnvelopeProto;
+import io.github.anupambasak.gradle.dtos.proto.SessionPojoProto;
+import io.github.anupambasak.gradle.dtos.proto.StringListProto;
+import io.github.anupambasak.gradle.dtos.proto.TimePojoProto;
+import io.github.anupambasak.gradle.testenums.proto.AppConstantsProto;
+import io.github.anupambasak.gradle.testenums.proto.ContsProto;
+import io.github.anupambasak.gradle.testenums.proto.EnumPojoProto;
+import io.github.anupambasak.gradle.testenums.proto.TestEnumProto;
 import com.google.protobuf.Timestamp;
 import com.google.protobuf.util.Timestamps;
 import io.github.anupambasak.gradle.dtos.MapPojo;
@@ -41,48 +60,64 @@ import static org.junit.jupiter.api.Assertions.*;
 
 class GradlePojoToProtoPluginFunctionalTest {
 
-    private final String protoDir = "src/main/proto";
+    private static final String protoDir = "src/main/proto";
+
+    /**
+     * Generated files follow the POJO package plus javaPackageSuffix, matching their package and java_package:
+     * io.github.anupambasak.gradle.dtos.Address -> io/github/anupambasak/gradle/dtos/proto/AddressProto.proto
+     */
+    private static Path protoFile(String pojoPackageDir, String file) {
+        return Path.of(protoDir, "io/github/anupambasak/gradle/" + pojoPackageDir + "/proto", file);
+    }
+
+    private static Path dtos(String file) {
+        return protoFile("dtos", file);
+    }
+
+    private static Path enums(String file) {
+        return protoFile("testenums", file);
+    }
 
 
     @Test
     void verifyPersonPojoProtoContent() throws IOException {
-        Path personPojoProtoPath = Path.of(protoDir, "PersonPojo.proto");
-        assertTrue(Files.exists(personPojoProtoPath), "PersonPojo.proto should be generated");
+        Path personPojoProtoPath = dtos("PersonPojoProto.proto");
+        assertTrue(Files.exists(personPojoProtoPath), "PersonPojoProto.proto should be generated");
 
         String personPojoProtoContent = Files.readString(personPojoProtoPath);
         assertTrue(personPojoProtoContent.contains("syntax = \"proto3\";"));
-        assertTrue(personPojoProtoContent.contains("package com.anupambasak.gradle.proto;"));
-        assertTrue(personPojoProtoContent.contains("option java_package = \"com.anupambasak.gradle.proto\";"));
+        assertTrue(personPojoProtoContent.contains("package io.github.anupambasak.gradle.dtos.proto;"));
+        assertTrue(personPojoProtoContent.contains("option java_package = \"io.github.anupambasak.gradle.dtos.proto\";"));
         assertTrue(personPojoProtoContent.contains("option java_multiple_files = true;"));
-        assertTrue(personPojoProtoContent.contains("import \"Address.proto\";"));
+        assertTrue(personPojoProtoContent.contains("import \"io/github/anupambasak/gradle/dtos/proto/AddressProto.proto\";"));
         assertTrue(personPojoProtoContent.contains("import \"google/protobuf/timestamp.proto\";"));
-        assertTrue(personPojoProtoContent.contains("message PersonPojo {"));
+        assertTrue(personPojoProtoContent.contains("message PersonPojoProto {"));
         assertTrue(personPojoProtoContent.contains("  string name = 1;"));
         assertTrue(personPojoProtoContent.contains("  int32 age = 2;"));
         assertTrue(personPojoProtoContent.contains("  int32 weight = 3;"));
         assertFalse(personPojoProtoContent.contains("import \"short.proto\";"), "Java primitives must not be imported");
-        assertTrue(personPojoProtoContent.contains("  Address address = 4;"));
-        assertTrue(personPojoProtoContent.contains("  repeated Address previousAddresses = 5;"));
-        assertTrue(personPojoProtoContent.contains("  repeated Address addressesHome = 6;"));
+        assertTrue(personPojoProtoContent.contains("  AddressProto address = 4;"));
+        assertTrue(personPojoProtoContent.contains("  repeated AddressProto previousAddresses = 5;"));
+        assertTrue(personPojoProtoContent.contains("  repeated AddressProto addressesHome = 6;"));
         assertTrue(personPojoProtoContent.contains("  google.protobuf.Timestamp createdAt = 7;"));
         assertTrue(personPojoProtoContent.contains("  google.protobuf.Timestamp dob = 8;"));
     }
 
     @Test
     void verifyTimePojoProtoContent() throws IOException {
-        Path timePojoProtoPath = Path.of(protoDir, "TimePojo.proto");
-        assertTrue(Files.exists(timePojoProtoPath), "TimePojo.proto should be generated");
+        Path timePojoProtoPath = dtos("TimePojoProto.proto");
+        assertTrue(Files.exists(timePojoProtoPath), "TimePojoProto.proto should be generated");
 
         String timePojoProtoContent = Files.readString(timePojoProtoPath);
         assertTrue(timePojoProtoContent.contains("syntax = \"proto3\";"));
-        assertTrue(timePojoProtoContent.contains("package com.anupambasak.gradle.proto;"));
-        assertTrue(timePojoProtoContent.contains("option java_package = \"com.anupambasak.gradle.proto\";"));
+        assertTrue(timePojoProtoContent.contains("package io.github.anupambasak.gradle.dtos.proto;"));
+        assertTrue(timePojoProtoContent.contains("option java_package = \"io.github.anupambasak.gradle.dtos.proto\";"));
         assertTrue(timePojoProtoContent.contains("option java_multiple_files = true;"));
         assertTrue(timePojoProtoContent.contains("import \"google/protobuf/duration.proto\";"));
         assertTrue(timePojoProtoContent.contains("import \"google/protobuf/timestamp.proto\";"));
         assertTrue(timePojoProtoContent.contains("import \"google/type/date.proto\";"));
         assertTrue(timePojoProtoContent.contains("import \"google/type/timeofday.proto\";"));
-        assertTrue(timePojoProtoContent.contains("message TimePojo {"));
+        assertTrue(timePojoProtoContent.contains("message TimePojoProto {"));
         assertTrue(timePojoProtoContent.contains("  google.protobuf.Timestamp instant = 1;"));
         assertTrue(timePojoProtoContent.contains("  google.protobuf.Timestamp zonedDateTime = 2;"));
         assertTrue(timePojoProtoContent.contains("  google.protobuf.Timestamp localDateTime = 3;"));
@@ -105,17 +140,17 @@ class GradlePojoToProtoPluginFunctionalTest {
 
         @Test
         void verifyMapPojoProtoContent() throws IOException {
-            Path mapPojoProtoPath = Path.of(protoDir, "MapPojo.proto");
-            assertTrue(Files.exists(mapPojoProtoPath), "MapPojo.proto should be generated");
+            Path mapPojoProtoPath = dtos("MapPojoProto.proto");
+            assertTrue(Files.exists(mapPojoProtoPath), "MapPojoProto.proto should be generated");
             String mapPojoProtoContent = Files.readString(mapPojoProtoPath);
             assertTrue(mapPojoProtoContent.contains("syntax = \"proto3\";"));
-            assertTrue(mapPojoProtoContent.contains("package com.anupambasak.gradle.proto;"));
-            assertTrue(mapPojoProtoContent.contains("option java_package = \"com.anupambasak.gradle.proto\";"));
+            assertTrue(mapPojoProtoContent.contains("package io.github.anupambasak.gradle.dtos.proto;"));
+            assertTrue(mapPojoProtoContent.contains("option java_package = \"io.github.anupambasak.gradle.dtos.proto\";"));
             assertTrue(mapPojoProtoContent.contains("option java_multiple_files = true;"));
-            assertTrue(mapPojoProtoContent.contains("import \"Address.proto\";"));
-            assertTrue(mapPojoProtoContent.contains("message MapPojo {"));
+            assertTrue(mapPojoProtoContent.contains("import \"io/github/anupambasak/gradle/dtos/proto/AddressProto.proto\";"));
+            assertTrue(mapPojoProtoContent.contains("message MapPojoProto {"));
             assertTrue(mapPojoProtoContent.contains("  map<string, int32> simpleMap = 1;"));
-            assertTrue(mapPojoProtoContent.contains("  map<string, Address> complexMap = 2;"));
+            assertTrue(mapPojoProtoContent.contains("  map<string, AddressProto> complexMap = 2;"));
 
         }
 
@@ -124,15 +159,15 @@ class GradlePojoToProtoPluginFunctionalTest {
         @Test
 
         void verifyContsProtoContent() throws IOException {
-            Path contsProtoPath = Path.of(protoDir, "Conts.proto");
-            assertTrue(Files.exists(contsProtoPath), "Conts.proto should be generated");
+            Path contsProtoPath = enums("ContsProto.proto");
+            assertTrue(Files.exists(contsProtoPath), "ContsProto.proto should be generated");
             String contsProtoContent = Files.readString(contsProtoPath);
             assertTrue(contsProtoContent.contains("syntax = \"proto3\";"));
-            assertTrue(contsProtoContent.contains("package com.anupambasak.gradle.proto;"));
-            assertTrue(contsProtoContent.contains("option java_package = \"com.anupambasak.gradle.proto\";"));
+            assertTrue(contsProtoContent.contains("package io.github.anupambasak.gradle.testenums.proto;"));
+            assertTrue(contsProtoContent.contains("option java_package = \"io.github.anupambasak.gradle.testenums.proto\";"));
             assertTrue(contsProtoContent.contains("option java_multiple_files = true;"));
             assertFalse(contsProtoContent.contains("import \"BerthType.proto\";")); // No incorrect import
-            assertTrue(contsProtoContent.contains("message Conts {"));
+            assertTrue(contsProtoContent.contains("message ContsProto {"));
             assertTrue(contsProtoContent.contains("enum b {"));
             assertTrue(contsProtoContent.contains("  B_c = 0;"));
             assertTrue(contsProtoContent.contains("  B_d = 1;"));
@@ -153,29 +188,29 @@ class GradlePojoToProtoPluginFunctionalTest {
 
     @Test
     void verifyEnumPojosProtoContent() throws IOException {
-        Path enumPojoProtoPath = Path.of(protoDir, "EnumPojo.proto");
-        assertTrue(Files.exists(enumPojoProtoPath), "EnumPojo.proto should be generated");
+        Path enumPojoProtoPath = enums("EnumPojoProto.proto");
+        assertTrue(Files.exists(enumPojoProtoPath), "EnumPojoProto.proto should be generated");
 
         String enumPojoProtoContent = Files.readString(enumPojoProtoPath);
         assertTrue(enumPojoProtoContent.contains("syntax = \"proto3\";"));
-        assertTrue(enumPojoProtoContent.contains("package com.anupambasak.gradle.proto;"));
-        assertTrue(enumPojoProtoContent.contains("option java_package = \"com.anupambasak.gradle.proto\";"));
+        assertTrue(enumPojoProtoContent.contains("package io.github.anupambasak.gradle.testenums.proto;"));
+        assertTrue(enumPojoProtoContent.contains("option java_package = \"io.github.anupambasak.gradle.testenums.proto\";"));
         assertTrue(enumPojoProtoContent.contains("option java_multiple_files = true;"));
-        assertTrue(enumPojoProtoContent.contains("import \"Conts.proto\";"));
-        assertTrue(enumPojoProtoContent.contains("import \"TestEnum.proto\";"));
-        assertTrue(enumPojoProtoContent.contains("message EnumPojo {"));
-        assertTrue(enumPojoProtoContent.contains("  TestEnum testEnum = 1;"));
-        assertTrue(enumPojoProtoContent.contains("  Conts.b berthType = 2;"));
+        assertTrue(enumPojoProtoContent.contains("import \"io/github/anupambasak/gradle/testenums/proto/ContsProto.proto\";"));
+        assertTrue(enumPojoProtoContent.contains("import \"io/github/anupambasak/gradle/testenums/proto/TestEnumProto.proto\";"));
+        assertTrue(enumPojoProtoContent.contains("message EnumPojoProto {"));
+        assertTrue(enumPojoProtoContent.contains("  TestEnumProto testEnum = 1;"));
+        assertTrue(enumPojoProtoContent.contains("  ContsProto.b berthType = 2;"));
 
-        Path testEnumProtoPath = Path.of(protoDir, "TestEnum.proto");
-        assertTrue(Files.exists(testEnumProtoPath), "TestEnum.proto should be generated");
+        Path testEnumProtoPath = enums("TestEnumProto.proto");
+        assertTrue(Files.exists(testEnumProtoPath), "TestEnumProto.proto should be generated");
 
         String testEnumProtoContent = Files.readString(testEnumProtoPath);
         assertTrue(testEnumProtoContent.contains("syntax = \"proto3\";"));
-        assertTrue(testEnumProtoContent.contains("package com.anupambasak.gradle.proto;"));
-        assertTrue(testEnumProtoContent.contains("option java_package = \"com.anupambasak.gradle.proto\";"));
+        assertTrue(testEnumProtoContent.contains("package io.github.anupambasak.gradle.testenums.proto;"));
+        assertTrue(testEnumProtoContent.contains("option java_package = \"io.github.anupambasak.gradle.testenums.proto\";"));
         assertTrue(testEnumProtoContent.contains("option java_multiple_files = true;"));
-        assertTrue(testEnumProtoContent.contains("enum TestEnum {"));
+        assertTrue(testEnumProtoContent.contains("enum TestEnumProto {"));
         assertTrue(testEnumProtoContent.contains("  TEST_ENUM_VALUE1 = 0;"));
         assertTrue(testEnumProtoContent.contains("  TEST_ENUM_VALUE2 = 1;"));
         assertTrue(testEnumProtoContent.contains("  TEST_ENUM_VALUE3 = 2;"));
@@ -201,13 +236,13 @@ class GradlePojoToProtoPluginFunctionalTest {
         personPojo.setDob(LocalDateTime.of(1990, 1, 1, 0, 0));
 
         // Create Proto from PersonPojo
-        com.anupambasak.gradle.proto.Address addressProto = com.anupambasak.gradle.proto.Address.newBuilder()
+        AddressProto addressProto = AddressProto.newBuilder()
                 .setStreet(addressPojo.getStreet())
                 .setCity(addressPojo.getCity())
                 .setZipCode(addressPojo.getZipCode())
                 .build();
 
-        com.anupambasak.gradle.proto.PersonPojo personProto = com.anupambasak.gradle.proto.PersonPojo.newBuilder()
+        PersonPojoProto personProto = PersonPojoProto.newBuilder()
                 .setName(personPojo.getName())
                 .setAge(personPojo.getAge())
                 .setWeight(personPojo.getWeight())
@@ -254,7 +289,7 @@ class GradlePojoToProtoPluginFunctionalTest {
         timePojo.setDates(Collections.singletonList(new java.util.Date()));
 
         // Create Proto from TimePojo
-        com.anupambasak.gradle.proto.TimePojo timeProto = com.anupambasak.gradle.proto.TimePojo.newBuilder()
+        TimePojoProto timeProto = TimePojoProto.newBuilder()
                 .setInstant(Timestamps.fromMillis(timePojo.getInstant().toEpochMilli()))
                 .setZonedDateTime(Timestamps.fromMillis(timePojo.getZonedDateTime().toInstant().toEpochMilli()))
                 .setLocalDateTime(Timestamp.newBuilder().setSeconds(timePojo.getLocalDateTime().toEpochSecond(ZoneOffset.UTC)).build())
@@ -316,9 +351,9 @@ class GradlePojoToProtoPluginFunctionalTest {
         enumPojo.setBerthType(Conts.b.c);
 
         // Create Proto from EnumPojo
-        com.anupambasak.gradle.proto.EnumPojo enumProto = com.anupambasak.gradle.proto.EnumPojo.newBuilder()
-                .setTestEnum(com.anupambasak.gradle.proto.TestEnum.TEST_ENUM_VALUE2)
-                .setBerthType(com.anupambasak.gradle.proto.Conts.b.B_c)
+        EnumPojoProto enumProto = EnumPojoProto.newBuilder()
+                .setTestEnum(TestEnumProto.TEST_ENUM_VALUE2)
+                .setBerthType(ContsProto.b.B_c)
                 .build();
 
         // Assert values (proto enum values carry the enum-name prefix; ordinals line up with the Java enum)
@@ -330,28 +365,28 @@ class GradlePojoToProtoPluginFunctionalTest {
 
     @Test
     void verifyNestedInterfaceEnumsAreReferencedQualified() throws IOException {
-        Path sessionProtoPath = Path.of(protoDir, "SessionPojo.proto");
-        assertTrue(Files.exists(sessionProtoPath), "SessionPojo.proto should be generated");
+        Path sessionProtoPath = dtos("SessionPojoProto.proto");
+        assertTrue(Files.exists(sessionProtoPath), "SessionPojoProto.proto should be generated");
 
         String sessionProto = Files.readString(sessionProtoPath);
-        assertTrue(sessionProto.contains("import \"AppConstants.proto\";"));
-        assertFalse(sessionProto.contains("import \"TxnType.proto\";"), "nested enums have no .proto file of their own");
-        assertFalse(sessionProto.contains("import \"RecordStatus.proto\";"), "nested enums have no .proto file of their own");
-        assertTrue(sessionProto.contains("message SessionPojo {"));
+        assertTrue(sessionProto.contains("import \"io/github/anupambasak/gradle/testenums/proto/AppConstantsProto.proto\";"));
+        assertFalse(sessionProto.contains("import \"io/github/anupambasak/gradle/testenums/proto/TxnTypeProto.proto\";"), "nested enums have no .proto file of their own");
+        assertFalse(sessionProto.contains("import \"io/github/anupambasak/gradle/testenums/proto/RecordStatusProto.proto\";"), "nested enums have no .proto file of their own");
+        assertTrue(sessionProto.contains("message SessionPojoProto {"));
         assertTrue(sessionProto.contains("  int32 sessionNumber = 1;"));
-        assertTrue(sessionProto.contains("  AppConstants.TxnType txnType = 2;"));
-        assertTrue(sessionProto.contains("  AppConstants.RecordStatus recordStatus = 3;"));
-        assertTrue(sessionProto.contains("  repeated AppConstants.TxnType txnHistory = 4;"));
+        assertTrue(sessionProto.contains("  io.github.anupambasak.gradle.testenums.proto.AppConstantsProto.TxnType txnType = 2;"));
+        assertTrue(sessionProto.contains("  io.github.anupambasak.gradle.testenums.proto.AppConstantsProto.RecordStatus recordStatus = 3;"));
+        assertTrue(sessionProto.contains("  repeated io.github.anupambasak.gradle.testenums.proto.AppConstantsProto.TxnType txnHistory = 4;"));
 
-        Path constantsProtoPath = Path.of(protoDir, "AppConstants.proto");
-        assertTrue(Files.exists(constantsProtoPath), "AppConstants.proto should be generated");
+        Path constantsProtoPath = enums("AppConstantsProto.proto");
+        assertTrue(Files.exists(constantsProtoPath), "AppConstantsProto.proto should be generated");
         String constantsProto = Files.readString(constantsProtoPath);
-        assertTrue(constantsProto.contains("message AppConstants {"));
+        assertTrue(constantsProto.contains("message AppConstantsProto {"));
         assertTrue(constantsProto.contains("enum TxnType {"));
         assertTrue(constantsProto.contains("  TXN_TYPE_BOOKING = 0;"));
         assertTrue(constantsProto.contains("enum RecordStatus {"));
         assertTrue(constantsProto.contains("  RECORD_STATUS_FLUSHED = 0;"));
-        assertFalse(Files.exists(Path.of(protoDir, "TxnType.proto")));
+        assertFalse(Files.exists(enums("TxnTypeProto.proto")));
     }
 
     @Test
@@ -362,17 +397,17 @@ class GradlePojoToProtoPluginFunctionalTest {
         pojo.setRecordStatus(AppConstants.RecordStatus.BOOKED);
         pojo.setTxnHistory(List.of(AppConstants.TxnType.BOOKING, AppConstants.TxnType.CANCELLATION));
 
-        com.anupambasak.gradle.proto.SessionPojo proto = com.anupambasak.gradle.proto.SessionPojo.newBuilder()
+        SessionPojoProto proto = SessionPojoProto.newBuilder()
                 .setSessionNumber(pojo.getSessionNumber())
-                .setTxnType(com.anupambasak.gradle.proto.AppConstants.TxnType.forNumber(pojo.getTxnType().ordinal()))
-                .setRecordStatus(com.anupambasak.gradle.proto.AppConstants.RecordStatus.forNumber(pojo.getRecordStatus().ordinal()))
-                .addTxnHistory(com.anupambasak.gradle.proto.AppConstants.TxnType.TXN_TYPE_BOOKING)
-                .addTxnHistory(com.anupambasak.gradle.proto.AppConstants.TxnType.TXN_TYPE_CANCELLATION)
+                .setTxnType(AppConstantsProto.TxnType.forNumber(pojo.getTxnType().ordinal()))
+                .setRecordStatus(AppConstantsProto.RecordStatus.forNumber(pojo.getRecordStatus().ordinal()))
+                .addTxnHistory(AppConstantsProto.TxnType.TXN_TYPE_BOOKING)
+                .addTxnHistory(AppConstantsProto.TxnType.TXN_TYPE_CANCELLATION)
                 .build();
 
         assertEquals(42, proto.getSessionNumber());
-        assertEquals(com.anupambasak.gradle.proto.AppConstants.TxnType.TXN_TYPE_CANCELLATION, proto.getTxnType());
-        assertEquals(com.anupambasak.gradle.proto.AppConstants.RecordStatus.RECORD_STATUS_BOOKED, proto.getRecordStatus());
+        assertEquals(AppConstantsProto.TxnType.TXN_TYPE_CANCELLATION, proto.getTxnType());
+        assertEquals(AppConstantsProto.RecordStatus.RECORD_STATUS_BOOKED, proto.getRecordStatus());
         assertEquals(2, proto.getTxnHistoryCount());
         assertNotNull(proto.toByteArray());
     }
@@ -380,23 +415,23 @@ class GradlePojoToProtoPluginFunctionalTest {
     @Test
     void verifyExcludedPathsAreNotGenerated() {
         // excluded directory
-        assertFalse(Files.exists(Path.of(protoDir, "InternalAuditPojo.proto")), "classes under an excluded directory must be skipped");
+        assertFalse(Files.exists(protoFile("dtos/internal", "InternalAuditPojoProto.proto")), "classes under an excluded directory must be skipped");
         // excluded single file
-        assertFalse(Files.exists(Path.of(protoDir, "LegacyPojo.proto")), "an excluded file must be skipped");
+        assertFalse(Files.exists(dtos("LegacyPojoProto.proto")), "an excluded file must be skipped");
         // the rest of the same source directory is still generated
-        assertTrue(Files.exists(Path.of(protoDir, "PersonPojo.proto")));
+        assertTrue(Files.exists(dtos("PersonPojoProto.proto")));
     }
 
     @Test
     void verifyArrayPojoProtoContent() throws IOException {
-        Path arrayPojoProtoPath = Path.of(protoDir, "ArrayPojo.proto");
-        assertTrue(Files.exists(arrayPojoProtoPath), "ArrayPojo.proto should be generated");
+        Path arrayPojoProtoPath = dtos("ArrayPojoProto.proto");
+        assertTrue(Files.exists(arrayPojoProtoPath), "ArrayPojoProto.proto should be generated");
 
         String content = Files.readString(arrayPojoProtoPath);
-        assertTrue(content.contains("import \"Address.proto\";"));
+        assertTrue(content.contains("import \"io/github/anupambasak/gradle/dtos/proto/AddressProto.proto\";"));
         assertFalse(content.contains("[]"), "array brackets must not leak into the proto");
-        assertTrue(content.contains("  Address primaryAddress = 1;"));
-        assertTrue(content.contains("  repeated Address otherAddresses = 2;"));
+        assertTrue(content.contains("  AddressProto primaryAddress = 1;"));
+        assertTrue(content.contains("  repeated AddressProto otherAddresses = 2;"));
         assertTrue(content.contains("  repeated string tags = 3;"));
         assertTrue(content.contains("  repeated int32 scores = 4;"));
         assertTrue(content.contains("  bytes payload = 5;"));
@@ -415,13 +450,13 @@ class GradlePojoToProtoPluginFunctionalTest {
         pojo.setScores(new int[]{7, 9});
         pojo.setPayload(new byte[]{1, 2, 3});
 
-        com.anupambasak.gradle.proto.Address addressProto = com.anupambasak.gradle.proto.Address.newBuilder()
+        AddressProto addressProto = AddressProto.newBuilder()
                 .setStreet(address.getStreet())
                 .setCity(address.getCity())
                 .setZipCode(address.getZipCode())
                 .build();
 
-        com.anupambasak.gradle.proto.ArrayPojo.Builder builder = com.anupambasak.gradle.proto.ArrayPojo.newBuilder();
+        ArrayPojoProto.Builder builder = ArrayPojoProto.newBuilder();
         for (Address ignored : pojo.getOtherAddresses()) {
             builder.addOtherAddresses(addressProto);
         }
@@ -430,7 +465,7 @@ class GradlePojoToProtoPluginFunctionalTest {
             builder.addScores(score);
         }
         builder.setPayload(com.google.protobuf.ByteString.copyFrom(pojo.getPayload()));
-        com.anupambasak.gradle.proto.ArrayPojo proto = builder.build();
+        ArrayPojoProto proto = builder.build();
 
         assertEquals(2, proto.getOtherAddressesCount());
         assertEquals("Indexville", proto.getOtherAddresses(1).getCity());
@@ -441,11 +476,11 @@ class GradlePojoToProtoPluginFunctionalTest {
 
     @Test
     void verifyGenericApiResponseProtoContent() throws IOException {
-        String apiResponse = Files.readString(Path.of(protoDir, "ApiResponse.proto"));
+        String apiResponse = Files.readString(dtos("ApiResponseProto.proto"));
         assertTrue(apiResponse.contains("import \"google/protobuf/any.proto\";"));
         assertFalse(apiResponse.contains("T.proto"), "type parameters must not be imported as messages");
         assertFalse(apiResponse.contains("serialVersionUID"), "static fields must be skipped");
-        assertTrue(apiResponse.contains("message ApiResponse {"));
+        assertTrue(apiResponse.contains("message ApiResponseProto {"));
         assertTrue(apiResponse.contains("  bool success = 1;"));
         assertTrue(apiResponse.contains("  int32 errorCode = 2;"));
         assertTrue(apiResponse.contains("  string message = 3;"));
@@ -455,22 +490,22 @@ class GradlePojoToProtoPluginFunctionalTest {
         assertTrue(apiResponse.contains("  repeated google.protobuf.Any extras = 7;"));
         assertFalse(apiResponse.contains("Object.proto"), "java.lang.Object must map to Any, not a message");
 
-        String envelope = Files.readString(Path.of(protoDir, "ResponseEnvelope.proto"));
-        assertTrue(envelope.contains("import \"ApiResponse.proto\";"));
+        String envelope = Files.readString(dtos("ResponseEnvelopeProto.proto"));
+        assertTrue(envelope.contains("import \"io/github/anupambasak/gradle/dtos/proto/ApiResponseProto.proto\";"));
         assertFalse(envelope.contains("<"), "type arguments must not leak into the proto");
-        assertTrue(envelope.contains("  ApiResponse addressResponse = 1;"));
-        assertTrue(envelope.contains("  repeated ApiResponse history = 2;"));
+        assertTrue(envelope.contains("  ApiResponseProto addressResponse = 1;"));
+        assertTrue(envelope.contains("  repeated ApiResponseProto history = 2;"));
     }
 
     @Test
     void verifyProtoFromApiResponse() throws Exception {
-        com.anupambasak.gradle.proto.Address addressProto = com.anupambasak.gradle.proto.Address.newBuilder()
+        AddressProto addressProto = AddressProto.newBuilder()
                 .setStreet("9 Generic Way")
                 .setCity("Anytown")
                 .setZipCode(12345)
                 .build();
 
-        com.anupambasak.gradle.proto.ApiResponse response = com.anupambasak.gradle.proto.ApiResponse.newBuilder()
+        ApiResponseProto response = ApiResponseProto.newBuilder()
                 .setSuccess(true)
                 .setErrorCode(0)
                 .setMessage("ok")
@@ -478,81 +513,87 @@ class GradlePojoToProtoPluginFunctionalTest {
                 .addItems(com.google.protobuf.Any.pack(addressProto))
                 .build();
 
-        com.anupambasak.gradle.proto.ResponseEnvelope envelope = com.anupambasak.gradle.proto.ResponseEnvelope.newBuilder()
+        ResponseEnvelopeProto envelope = ResponseEnvelopeProto.newBuilder()
                 .setAddressResponse(response)
                 .addHistory(response)
                 .build();
 
-        com.anupambasak.gradle.proto.ResponseEnvelope parsed =
-                com.anupambasak.gradle.proto.ResponseEnvelope.parseFrom(envelope.toByteArray());
+        ResponseEnvelopeProto parsed =
+                ResponseEnvelopeProto.parseFrom(envelope.toByteArray());
         com.google.protobuf.Any data = parsed.getAddressResponse().getData();
-        assertTrue(data.is(com.anupambasak.gradle.proto.Address.class));
-        assertEquals("9 Generic Way", data.unpack(com.anupambasak.gradle.proto.Address.class).getStreet());
+        assertTrue(data.is(AddressProto.class));
+        assertEquals("9 Generic Way", data.unpack(AddressProto.class).getStreet());
         assertEquals(1, parsed.getHistoryCount());
     }
 
     @Test
-    void verifyClashingClassNamesArePrefixedWithTheirPackage() throws IOException {
-        // catalog.PriceDetailDTO and billing.PriceDetailDto differ only in case: on Windows/macOS both
-        // PriceDetailDTO.proto and PriceDetailDto.proto would be the same file, so both are renamed.
-        assertFalse(Files.exists(Path.of(protoDir, "PriceDetailDTO.proto")));
-        assertFalse(Files.exists(Path.of(protoDir, "PriceDetailDto.proto")));
+    void verifySameNamedClassesInDifferentPackagesKeepTheirNames() throws IOException {
+        // catalog.PriceDetailDTO and billing.PriceDetailDto differ only in case. Each is generated in its own
+        // package directory (dtos/catalog/proto, dtos/billing/proto), so they no longer collide (even on Windows/macOS) and are not renamed.
+        Path catalogPath = protoFile("dtos/catalog", "PriceDetailDTOProto.proto");
+        Path billingPath = protoFile("dtos/billing", "PriceDetailDtoProto.proto");
+        assertTrue(Files.exists(catalogPath), "catalog/proto/PriceDetailDTOProto.proto should be generated");
+        assertTrue(Files.exists(billingPath), "billing/proto/PriceDetailDtoProto.proto should be generated");
+        assertFalse(Files.exists(protoFile("dtos/catalog", "CatalogPriceDetailDTOProto.proto")), "no package prefix is needed");
 
-        String catalog = Files.readString(Path.of(protoDir, "CatalogPriceDetailDTO.proto"));
-        assertTrue(catalog.contains("message CatalogPriceDetailDTO {"));
+        String catalog = Files.readString(catalogPath);
+        assertTrue(catalog.contains("package io.github.anupambasak.gradle.dtos.catalog.proto;"));
+        assertTrue(catalog.contains("option java_package = \"io.github.anupambasak.gradle.dtos.catalog.proto\";"));
+        assertTrue(catalog.contains("message PriceDetailDTOProto {"));
         assertTrue(catalog.contains("  string sku = 1;"));
         assertTrue(catalog.contains("  double listPrice = 2;"));
 
-        String billing = Files.readString(Path.of(protoDir, "BillingPriceDetailDto.proto"));
-        assertTrue(billing.contains("message BillingPriceDetailDto {"));
+        String billing = Files.readString(billingPath);
+        assertTrue(billing.contains("package io.github.anupambasak.gradle.dtos.billing.proto;"));
+        assertTrue(billing.contains("message PriceDetailDtoProto {"));
         assertTrue(billing.contains("enum Kind {"));
         assertTrue(billing.contains("  KIND_CHARGE = 0;"));
         assertTrue(billing.contains("  Kind kind = 3;"));
 
-        String summary = Files.readString(Path.of(protoDir, "PriceSummaryPojo.proto"));
-        assertTrue(summary.contains("import \"BillingPriceDetailDto.proto\";"));
-        assertTrue(summary.contains("import \"CatalogPriceDetailDTO.proto\";"));
-        assertTrue(summary.contains("  CatalogPriceDetailDTO catalogPrice = 1;"));
-        assertTrue(summary.contains("  repeated BillingPriceDetailDto billedPrices = 2;"));
-        assertTrue(summary.contains("  BillingPriceDetailDto.Kind lastKind = 3;"));
+        String summary = Files.readString(dtos("PriceSummaryPojoProto.proto"));
+        assertTrue(summary.contains("import \"io/github/anupambasak/gradle/dtos/billing/proto/PriceDetailDtoProto.proto\";"));
+        assertTrue(summary.contains("import \"io/github/anupambasak/gradle/dtos/catalog/proto/PriceDetailDTOProto.proto\";"));
+        assertTrue(summary.contains("  io.github.anupambasak.gradle.dtos.catalog.proto.PriceDetailDTOProto catalogPrice = 1;"));
+        assertTrue(summary.contains("  repeated io.github.anupambasak.gradle.dtos.billing.proto.PriceDetailDtoProto billedPrices = 2;"));
+        assertTrue(summary.contains("  io.github.anupambasak.gradle.dtos.billing.proto.PriceDetailDtoProto.Kind lastKind = 3;"));
     }
 
     @Test
-    void verifyProtoFromClashingClasses() {
-        com.anupambasak.gradle.proto.CatalogPriceDetailDTO catalogPrice = com.anupambasak.gradle.proto.CatalogPriceDetailDTO.newBuilder()
+    void verifyProtoFromSameNamedClasses() {
+        PriceDetailDTOProto catalogPrice = PriceDetailDTOProto.newBuilder()
                 .setSku("SKU-1")
                 .setListPrice(9.5)
                 .build();
-        com.anupambasak.gradle.proto.BillingPriceDetailDto billed = com.anupambasak.gradle.proto.BillingPriceDetailDto.newBuilder()
+        PriceDetailDtoProto billed = PriceDetailDtoProto.newBuilder()
                 .setInvoiceId("INV-1")
                 .setAmount(9.5)
-                .setKind(com.anupambasak.gradle.proto.BillingPriceDetailDto.Kind.KIND_CHARGE)
+                .setKind(PriceDetailDtoProto.Kind.KIND_CHARGE)
                 .build();
 
-        com.anupambasak.gradle.proto.PriceSummaryPojo summary = com.anupambasak.gradle.proto.PriceSummaryPojo.newBuilder()
+        PriceSummaryPojoProto summary = PriceSummaryPojoProto.newBuilder()
                 .setCatalogPrice(catalogPrice)
                 .addBilledPrices(billed)
-                .setLastKind(com.anupambasak.gradle.proto.BillingPriceDetailDto.Kind.KIND_REFUND)
+                .setLastKind(PriceDetailDtoProto.Kind.KIND_REFUND)
                 .build();
 
         assertEquals("SKU-1", summary.getCatalogPrice().getSku());
         assertEquals("INV-1", summary.getBilledPrices(0).getInvoiceId());
-        assertEquals(com.anupambasak.gradle.proto.BillingPriceDetailDto.Kind.KIND_REFUND, summary.getLastKind());
+        assertEquals(PriceDetailDtoProto.Kind.KIND_REFUND, summary.getLastKind());
     }
 
     @Test
     void verifyCollectionPojoProtoContent() throws IOException {
-        String content = Files.readString(Path.of(protoDir, "CollectionPojo.proto"));
-        assertTrue(content.contains("import \"Address.proto\";"));
-        assertTrue(content.contains("import \"TestEnum.proto\";"));
+        String content = Files.readString(dtos("CollectionPojoProto.proto"));
+        assertTrue(content.contains("import \"io/github/anupambasak/gradle/dtos/proto/AddressProto.proto\";"));
+        assertTrue(content.contains("import \"io/github/anupambasak/gradle/testenums/proto/TestEnumProto.proto\";"));
         assertFalse(content.contains("Set.proto"), "Set must not be treated as a message");
         assertFalse(content.contains("<"), "type arguments must not leak into the proto");
         assertTrue(content.contains("  repeated string tags = 1;"));
-        assertTrue(content.contains("  repeated Address addresses = 2;"));
+        assertTrue(content.contains("  repeated AddressProto addresses = 2;"));
         assertTrue(content.contains("  repeated int32 codes = 3;"));
         assertTrue(content.contains("  repeated int64 ids = 4;"));
-        assertTrue(content.contains("  repeated TestEnum flags = 5;"));
-        assertTrue(content.contains("  repeated Address history = 6;"));
+        assertTrue(content.contains("  repeated io.github.anupambasak.gradle.testenums.proto.TestEnumProto flags = 5;"));
+        assertTrue(content.contains("  repeated AddressProto history = 6;"));
         assertTrue(content.contains("  repeated string queue = 7;"));
     }
 
@@ -560,10 +601,10 @@ class GradlePojoToProtoPluginFunctionalTest {
     void verifyProtoFromCollectionPojo() {
         java.util.Set<String> tags = new java.util.LinkedHashSet<>(List.of("red", "blue"));
 
-        com.anupambasak.gradle.proto.CollectionPojo proto = com.anupambasak.gradle.proto.CollectionPojo.newBuilder()
+        CollectionPojoProto proto = CollectionPojoProto.newBuilder()
                 .addAllTags(tags)
                 .addAllCodes(java.util.Set.of(7))
-                .addFlags(com.anupambasak.gradle.proto.TestEnum.TEST_ENUM_VALUE1)
+                .addFlags(TestEnumProto.TEST_ENUM_VALUE1)
                 .build();
 
         assertEquals(tags, new java.util.LinkedHashSet<>(proto.getTagsList()));
@@ -573,38 +614,38 @@ class GradlePojoToProtoPluginFunctionalTest {
 
     @Test
     void verifyMapOfListUsesWrapperMessages() throws IOException {
-        String grouped = Files.readString(Path.of(protoDir, "GroupedPojo.proto"));
-        assertTrue(grouped.contains("import \"AddressList.proto\";"));
-        assertTrue(grouped.contains("import \"StringList.proto\";"));
-        assertFalse(grouped.contains("repeated Address>"), "map values must not be repeated");
-        assertTrue(grouped.contains("  map<string, AddressList> addressesByCity = 1;"));
-        assertTrue(grouped.contains("  map<string, StringList> tagsByKey = 2;"));
-        assertTrue(grouped.contains("  repeated AddressList addressPages = 3;"));
+        String grouped = Files.readString(dtos("GroupedPojoProto.proto"));
+        assertTrue(grouped.contains("import \"io/github/anupambasak/gradle/dtos/proto/AddressListProto.proto\";"));
+        assertTrue(grouped.contains("import \"io/github/anupambasak/gradle/dtos/proto/StringListProto.proto\";"));
+        assertFalse(grouped.contains("repeated AddressProto>"), "map values must not be repeated");
+        assertTrue(grouped.contains("  map<string, AddressListProto> addressesByCity = 1;"));
+        assertTrue(grouped.contains("  map<string, StringListProto> tagsByKey = 2;"));
+        assertTrue(grouped.contains("  repeated AddressListProto addressPages = 3;"));
 
-        String addressList = Files.readString(Path.of(protoDir, "AddressList.proto"));
-        assertTrue(addressList.contains("import \"Address.proto\";"));
-        assertTrue(addressList.contains("message AddressList {\n  repeated Address items = 1;\n}"));
+        String addressList = Files.readString(dtos("AddressListProto.proto"));
+        assertTrue(addressList.contains("import \"io/github/anupambasak/gradle/dtos/proto/AddressProto.proto\";"));
+        assertTrue(addressList.contains("message AddressListProto {\n  repeated AddressProto items = 1;\n}"));
 
-        String stringList = Files.readString(Path.of(protoDir, "StringList.proto"));
-        assertTrue(stringList.contains("message StringList {\n  repeated string items = 1;\n}"));
+        String stringList = Files.readString(dtos("StringListProto.proto"));
+        assertTrue(stringList.contains("message StringListProto {\n  repeated string items = 1;\n}"));
         assertFalse(stringList.contains("import "));
     }
 
     @Test
     void verifyProtoFromGroupedPojo() throws Exception {
-        com.anupambasak.gradle.proto.Address pune = com.anupambasak.gradle.proto.Address.newBuilder()
+        AddressProto pune = AddressProto.newBuilder()
                 .setStreet("1 FC Road").setCity("Pune").setZipCode(411004).build();
-        com.anupambasak.gradle.proto.AddressList puneAddresses = com.anupambasak.gradle.proto.AddressList.newBuilder()
+        AddressListProto puneAddresses = AddressListProto.newBuilder()
                 .addItems(pune).addItems(pune).build();
 
-        com.anupambasak.gradle.proto.GroupedPojo grouped = com.anupambasak.gradle.proto.GroupedPojo.newBuilder()
+        GroupedPojoProto grouped = GroupedPojoProto.newBuilder()
                 .putAddressesByCity("Pune", puneAddresses)
-                .putTagsByKey("colors", com.anupambasak.gradle.proto.StringList.newBuilder().addItems("red").addItems("blue").build())
+                .putTagsByKey("colors", StringListProto.newBuilder().addItems("red").addItems("blue").build())
                 .addAddressPages(puneAddresses)
                 .build();
 
-        com.anupambasak.gradle.proto.GroupedPojo parsed =
-                com.anupambasak.gradle.proto.GroupedPojo.parseFrom(grouped.toByteArray());
+        GroupedPojoProto parsed =
+                GroupedPojoProto.parseFrom(grouped.toByteArray());
         assertEquals(2, parsed.getAddressesByCityOrThrow("Pune").getItemsCount());
         assertEquals(List.of("red", "blue"), parsed.getTagsByKeyOrThrow("colors").getItemsList());
         assertEquals("Pune", parsed.getAddressPages(0).getItems(0).getCity());
@@ -624,13 +665,13 @@ class GradlePojoToProtoPluginFunctionalTest {
         mapPojo.setComplexMap(Collections.singletonMap("home", addressPojo));
 
         // Create Proto from MapPojo
-        com.anupambasak.gradle.proto.Address addressProto = com.anupambasak.gradle.proto.Address.newBuilder()
+        AddressProto addressProto = AddressProto.newBuilder()
                 .setStreet(addressPojo.getStreet())
                 .setCity(addressPojo.getCity())
                 .setZipCode(addressPojo.getZipCode())
                 .build();
 
-        com.anupambasak.gradle.proto.MapPojo mapProto = com.anupambasak.gradle.proto.MapPojo.newBuilder()
+        MapPojoProto mapProto = MapPojoProto.newBuilder()
                 .putSimpleMap("one", 1)
                 .putComplexMap("home", addressProto)
                 .build();

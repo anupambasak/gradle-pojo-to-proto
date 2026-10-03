@@ -24,6 +24,11 @@ public class GradlePojoToProtoPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
         PojoToProtoExtension extension = project.getExtensions().create("pojoToProto", PojoToProtoExtension.class);
+        extension.getSingleFile().convention(false);
+        // One file can only declare one package, so singleFile switches the per-package layout off by default
+        extension.getUsePojoPackages().convention(extension.getSingleFile().map(singleFile -> !singleFile));
+        extension.getNameSuffix().convention(PojoToProtoTask.DEFAULT_NAME_SUFFIX);
+        extension.getJavaPackageSuffix().convention(PojoToProtoTask.DEFAULT_JAVA_PACKAGE_SUFFIX);
 
         project.getTasks().register("pojoToProto", PojoToProtoTask.class, task -> {
             task.getSource().from(extension.getSource());
@@ -32,6 +37,9 @@ public class GradlePojoToProtoPlugin implements Plugin<Project> {
             task.getSingleFile().set(extension.getSingleFile());
             task.getPrefixEnumNames().set(extension.getPrefixEnumNames());
             task.getPackageName().set(extension.getPackageName());
+            task.getUsePojoPackages().set(extension.getUsePojoPackages());
+            task.getNameSuffix().set(extension.getNameSuffix());
+            task.getJavaPackageSuffix().set(extension.getJavaPackageSuffix());
             task.getProjectName().set(project.getName());
             task.getProjectGroup().set(project.getGroup().toString());
         });

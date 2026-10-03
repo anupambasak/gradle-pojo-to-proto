@@ -29,6 +29,7 @@ import com.github.javaparser.ast.type.TypeParameter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
@@ -45,10 +46,72 @@ import java.util.stream.Collectors;
 
 public class ProtoGenerator {
 
+    /**
+     * Generation settings. Defaults reproduce the original behaviour: one shared proto package, no name suffix.
+     */
+    public static final class Options {
+        private boolean prefixEnumNames;
+        private String nameSuffix = "";
+        private boolean usePojoPackages;
+        private String sharedPackage = "";
+        private String javaPackageSuffix = "";
+
+        /** Prefix enum values with the enum name in UPPER_SNAKE_CASE. */
+        public Options prefixEnumNames(boolean prefixEnumNames) {
+            this.prefixEnumNames = prefixEnumNames;
+            return this;
+        }
+
+        /**
+         * Appended to the name of every generated top-level message and enum (and so to its file name):
+         * {@code Address -> AddressProto} in {@code AddressProto.proto}.
+         */
+        public Options nameSuffix(String nameSuffix) {
+            this.nameSuffix = nameSuffix == null ? "" : nameSuffix.trim();
+            return this;
+        }
+
+        /**
+         * Use each POJO's Java package as the proto {@code package} and write its file into the matching
+         * directory ({@code com.x.dtos.Address -> com/x/dtos/Address.proto}).
+         */
+        public Options usePojoPackages(boolean usePojoPackages) {
+            this.usePojoPackages = usePojoPackages;
+            return this;
+        }
+
+        /**
+         * The proto package shared by all files when {@link #usePojoPackages} is off; ignored with it. The Gradle
+         * task passes {@code packageName}, which defaults to the project's group.
+         */
+        public Options sharedPackage(String sharedPackage) {
+            this.sharedPackage = sharedPackage == null ? "" : sharedPackage.trim();
+            return this;
+        }
+
+        /**
+         * Appended to the Java package to form {@code option java_package}, e.g. {@code ".proto"}. With
+         * {@link #usePojoPackages} it is part of the proto package and directory as well
+         * ({@code com.x.dtos.Address -> com/x/dtos/proto/AddressProto.proto}, {@code package com.x.dtos.proto}),
+         * so file location, proto package and java_package all match. With the shared package it only affects
+         * {@code java_package}.
+         */
+        public Options javaPackageSuffix(String javaPackageSuffix) {
+            this.javaPackageSuffix = javaPackageSuffix == null ? "" : javaPackageSuffix.trim();
+            return this;
+        }
+    }
+
     private final boolean prefixEnumNames;
+    private final String nameSuffix;
+    private final boolean usePojoPackages;
+    private final String sharedPackage;
+    private final String javaPackageSuffix;
 
     /** Proto names of the top-level types registered with {@link #registerTypes}, keyed by declaration identity. */
     private final Map<TypeDeclaration<?>, String> protoNames = new IdentityHashMap<>();
+    /** Same as {@link #protoNames} but without {@link Options#nameSuffix}; used for enum value prefixes. */
+    private final Map<TypeDeclaration<?>, String> baseNames = new IdentityHashMap<>();
     private final List<TypeDeclaration<?>> topLevelTypes = new ArrayList<>();
 
     public ProtoGenerator() {
@@ -56,7 +119,15 @@ public class ProtoGenerator {
     }
 
     public ProtoGenerator(boolean prefixEnumNames) {
-        this.prefixEnumNames = prefixEnumNames;
+        this(new Options().prefixEnumNames(prefixEnumNames));
+    }
+
+    public ProtoGenerator(Options options) {
+        this.prefixEnumNames = options.prefixEnumNames;
+        this.nameSuffix = options.nameSuffix;
+        this.usePojoPackages = options.usePojoPackages;
+        this.sharedPackage = options.sharedPackage;
+        this.javaPackageSuffix = options.javaPackageSuffix;
     }
 
     /**
@@ -73,6 +144,7 @@ public class ProtoGenerator {
      */
     public Map<String, String> registerTypes(List<CompilationUnit> cus) {
         protoNames.clear();
+        baseNames.clear();
         topLevelTypes.clear();
         topLevelWrappers.clear();
         nestedWrappers.clear();
@@ -81,13 +153,15 @@ public class ProtoGenerator {
         }
         Map<String, List<TypeDeclaration<?>>> byKey = new TreeMap<>();
         for (TypeDeclaration<?> type : topLevelTypes) {
-            byKey.computeIfAbsent(type.getNameAsString().toLowerCase(Locale.ROOT), k -> new ArrayList<>()).add(type);
+            // With usePojoPackages only types sharing a proto package (and so a directory) can clash
+            String scope = usePojoPackages ? protoPackage(type) + "|" : "";
+            byKey.computeIfAbsent(scope + type.getNameAsString().toLowerCase(Locale.ROOT), k -> new ArrayList<>()).add(type);
         }
-        Set<String> taken = new HashSet<>();
+        Map<String, Set<String>> takenByPackage = new HashMap<>();
         for (List<TypeDeclaration<?>> group : byKey.values()) {
             if (group.size() == 1) {
-                protoNames.put(group.get(0), group.get(0).getNameAsString());
-                taken.add(group.get(0).getNameAsString().toLowerCase(Locale.ROOT));
+                assignName(group.get(0), group.get(0).getNameAsString());
+                takenIn(takenByPackage, group.get(0)).add(group.get(0).getNameAsString().toLowerCase(Locale.ROOT));
             }
         }
         Map<String, String> renamed = new TreeMap<>();
@@ -96,14 +170,24 @@ public class ProtoGenerator {
                 continue;
             }
             group.sort(Comparator.comparing(ProtoGenerator::fullyQualifiedName));
+            Set<String> taken = takenIn(takenByPackage, group.get(0));
             List<String> names = disambiguate(group, taken);
             for (int i = 0; i < group.size(); i++) {
-                protoNames.put(group.get(i), names.get(i));
+                assignName(group.get(i), names.get(i));
                 taken.add(names.get(i).toLowerCase(Locale.ROOT));
-                renamed.put(fullyQualifiedName(group.get(i)), names.get(i));
+                renamed.put(fullyQualifiedName(group.get(i)), protoNames.get(group.get(i)));
             }
         }
         return renamed;
+    }
+
+    private void assignName(TypeDeclaration<?> type, String baseName) {
+        baseNames.put(type, baseName);
+        protoNames.put(type, baseName + nameSuffix);
+    }
+
+    private Set<String> takenIn(Map<String, Set<String>> takenByPackage, TypeDeclaration<?> type) {
+        return takenByPackage.computeIfAbsent(usePojoPackages ? protoPackage(type) : "", k -> new HashSet<>());
     }
 
     private static List<String> disambiguate(List<TypeDeclaration<?>> group, Set<String> taken) {
@@ -157,9 +241,70 @@ public class ProtoGenerator {
         return type.getFullyQualifiedName().orElse(type.getNameAsString());
     }
 
-    /** The proto name of a top-level type: its Java name unless {@link #registerTypes} renamed it. */
+    /**
+     * The proto name of a top-level type: its Java name (unless {@link #registerTypes} renamed it)
+     * followed by the configured name suffix.
+     */
     public String protoName(TypeDeclaration<?> type) {
-        return protoNames.getOrDefault(type, type.getNameAsString());
+        return protoNames.getOrDefault(type, type.getNameAsString() + nameSuffix);
+    }
+
+    /** {@link #protoName} without the name suffix. */
+    String baseName(TypeDeclaration<?> type) {
+        return baseNames.getOrDefault(type, type.getNameAsString());
+    }
+
+    private String javaPackage(Node node) {
+        return node.findCompilationUnit()
+                .flatMap(CompilationUnit::getPackageDeclaration)
+                .map(pd -> pd.getNameAsString())
+                .orElse("");
+    }
+
+    /**
+     * The proto package a type (or the types of a compilation unit) is generated in: with
+     * {@link Options#usePojoPackages}, its Java package followed by {@link Options#javaPackageSuffix}
+     * ({@code com.x.dtos -> com.x.dtos.proto}; none for classes in the default package), so that it equals
+     * the generated {@code java_package}. Otherwise the {@link Options#sharedPackage}.
+     */
+    public String protoPackage(Node node) {
+        if (!usePojoPackages) {
+            return sharedPackage;
+        }
+        String pkg = node == null ? "" : javaPackage(node);
+        return pkg.isEmpty() ? "" : pkg + javaPackageSuffix;
+    }
+
+    /** {@code option java_package} for a file in the given proto package. */
+    String javaPackageFor(String protoPackage) {
+        // With usePojoPackages the suffix is already part of the proto package
+        return usePojoPackages ? protoPackage : protoPackage + javaPackageSuffix;
+    }
+
+    /** Directory, relative to the destination, holding the files of a proto package ("" or ending in '/'). */
+    String directoryOf(String protoPackage) {
+        return usePojoPackages && !protoPackage.isEmpty() ? protoPackage.replace('.', '/') + "/" : "";
+    }
+
+    /**
+     * Path of the .proto file declaring a top-level type, relative to the destination directory. It is also
+     * the path used to import it: {@code Address.proto}, or {@code com/x/dtos/proto/Address.proto} with usePojoPackages
+     * (and javaPackageSuffix {@code ".proto"}).
+     */
+    public String protoFile(TypeDeclaration<?> type) {
+        return directoryOf(protoPackage(type)) + protoName(type) + ".proto";
+    }
+
+    /**
+     * How {@code from} refers to a top-level type: its proto name, qualified with its proto package when that
+     * differs from the package of {@code from}.
+     */
+    String qualify(String name, TypeDeclaration<?> target, String fromPackage) {
+        String targetPackage = protoPackage(target);
+        if (!usePojoPackages || targetPackage.isEmpty() || targetPackage.equals(fromPackage)) {
+            return name;
+        }
+        return targetPackage + "." + name;
     }
 
     /** All proto names of the registered top-level types. */
@@ -176,7 +321,7 @@ public class ProtoGenerator {
         headerBuilder.append("syntax = \"proto3\";\n\n");
         if (packageName != null && !packageName.isEmpty()) {
             headerBuilder.append("package ").append(packageName).append(";\n\n");
-            headerBuilder.append("option java_package = \"").append(packageName).append("\";\n");
+            headerBuilder.append("option java_package = \"").append(javaPackageFor(packageName)).append("\";\n");
             headerBuilder.append("option java_multiple_files = true;\n\n");
         }
         if (!imports.isEmpty()) {
@@ -283,7 +428,8 @@ public class ProtoGenerator {
         if (!prefixEnumNames) {
             return constantName;
         }
-        String prefix = toUpperSnakeCase(enumProtoName(enumDeclaration)) + "_";
+        // Based on the name without the configured suffix: OrderStatus -> ORDER_STATUS_, not ORDER_STATUS_PROTO_
+        String prefix = toUpperSnakeCase(enumBaseName(enumDeclaration)) + "_";
         return constantName.startsWith(prefix) ? constantName : prefix + constantName;
     }
 
@@ -332,7 +478,7 @@ public class ProtoGenerator {
         if (isRepeatedType(javaType)) {
             WrapperMessage wrapper = wrapperFor(javaType, enumDeclarations, cu, true);
             if (!wrapper.nested) {
-                imports.add(wrapper.name + ".proto");
+                imports.add(wrapper.file);
             }
         } else {
             collectImports(javaType, cu, enumDeclarations, imports);
@@ -349,7 +495,7 @@ public class ProtoGenerator {
             // Nested enums are generated inside their outermost type's .proto file
             TypeDeclaration<?> outer = outermostType(enumDeclaration.get());
             if (outer != cu.getPrimaryType().orElse(null)) {
-                imports.add(protoName(outer) + ".proto");
+                imports.add(protoFile(outer));
             }
         } else if (!isPrimitive(importType)) {
             switch (importType) {
@@ -380,7 +526,7 @@ public class ProtoGenerator {
                     Optional<TypeDeclaration<?>> sourceType = resolveType(importType, cu, topLevelTypes);
                     if (sourceType.isPresent()) {
                         if (sourceType.get() != cu.getPrimaryType().orElse(null)) {
-                            imports.add(protoName(sourceType.get()) + ".proto");
+                            imports.add(protoFile(sourceType.get()));
                         }
                         break;
                     }
@@ -428,7 +574,7 @@ public class ProtoGenerator {
         javaType = stripTypeArguments(javaType);
         Optional<EnumDeclaration> enumDeclaration = resolveEnum(javaType, cu, enumDeclarations);
         if (enumDeclaration.isPresent()) {
-            return protoEnumTypeName(enumDeclaration.get(), topLevelScope ? null : cu, qualifyNestedEnums);
+            return protoEnumTypeName(enumDeclaration.get(), topLevelScope ? null : cu, qualifyNestedEnums, protoPackage(cu));
         }
         switch (javaType) {
             case "String":
@@ -478,7 +624,10 @@ public class ProtoGenerator {
                 // Any value: carried as google.protobuf.Any, like a class type parameter
                 return "google.protobuf.Any";
             default:
-                return resolveType(javaType, cu, topLevelTypes).map(this::protoName).orElse(stripPackage(javaType));
+                String fromPackage = protoPackage(cu);
+                return resolveType(javaType, cu, topLevelTypes)
+                        .map(type -> qualify(protoName(type), type, fromPackage))
+                        .orElse(stripPackage(javaType));
         }
     }
 
@@ -641,19 +790,35 @@ public class ProtoGenerator {
         return outermostType(enumDeclaration) == enumDeclaration ? protoName(enumDeclaration) : enumDeclaration.getNameAsString();
     }
 
+    /** {@link #enumProtoName} without the configured name suffix. */
+    String enumBaseName(EnumDeclaration enumDeclaration) {
+        return outermostType(enumDeclaration) == enumDeclaration ? baseName(enumDeclaration) : enumDeclaration.getNameAsString();
+    }
+
     /**
      * Proto type name used to reference the enum from a message in {@code cu}. Nested enums are emitted
      * inside their outermost type's message, so they are referenced as {@code Outer.Enum}
      * (e.g. {@code AppConstants.TxnType}), except from within that same message.
      */
     String protoEnumTypeName(EnumDeclaration enumDeclaration, CompilationUnit cu, boolean qualifyNestedEnums) {
+        return protoEnumTypeName(enumDeclaration, cu, qualifyNestedEnums, protoPackage(cu));
+    }
+
+    /**
+     * @param cu          the compilation unit whose message contains the reference, or null for a top-level wrapper
+     * @param fromPackage proto package of the file containing the reference; enums declared in another package
+     *                    are qualified with theirs
+     */
+    String protoEnumTypeName(EnumDeclaration enumDeclaration, CompilationUnit cu, boolean qualifyNestedEnums, String fromPackage) {
         String enumName = enumProtoName(enumDeclaration);
         TypeDeclaration<?> outer = outermostType(enumDeclaration);
-        if (!qualifyNestedEnums || outer == enumDeclaration
-                || (cu != null && outer == cu.getPrimaryType().orElse(null))) {
+        if (outer == enumDeclaration) {
+            return qualify(enumName, outer, fromPackage);
+        }
+        if (!qualifyNestedEnums || (cu != null && outer == cu.getPrimaryType().orElse(null))) {
             return enumName;
         }
-        return protoName(outer) + "." + enumName;
+        return qualify(protoName(outer) + "." + enumName, outer, fromPackage);
     }
 
     /**
@@ -666,16 +831,30 @@ public class ProtoGenerator {
         private final String elementType;
         private final Set<String> imports;
         private final boolean nested;
+        private final String protoPackage;
+        private final String file;
 
-        WrapperMessage(String name, String elementType, Set<String> imports, boolean nested) {
+        WrapperMessage(String name, String elementType, Set<String> imports, boolean nested, String protoPackage, String file) {
             this.name = name;
             this.elementType = elementType;
             this.imports = imports;
             this.nested = nested;
+            this.protoPackage = protoPackage;
+            this.file = file;
         }
 
         public String getName() {
             return name;
+        }
+
+        /** The proto package the wrapper is generated in (the package of the first message that needed it). */
+        public String getProtoPackage() {
+            return protoPackage;
+        }
+
+        /** Path of the wrapper's own .proto file, relative to the destination; also its import path. */
+        public String getFile() {
+            return file;
         }
 
         public String getElementType() {
@@ -687,7 +866,10 @@ public class ProtoGenerator {
         }
     }
 
-    /** Top-level wrappers, each generated once in its own file; keyed by element proto type. */
+    /**
+     * Top-level wrappers, each generated once in its own file; keyed by proto package and element proto type.
+     * A wrapper lives in the package of the message using it, so its element type reference is valid there.
+     */
     private final Map<String, WrapperMessage> topLevelWrappers = new TreeMap<>();
     /**
      * Wrappers nested inside a message: used when the element is declared in the same file as the message
@@ -724,10 +906,12 @@ public class ProtoGenerator {
         String elementJava = collectionElementType(collectionType).orElseGet(() -> arrayComponentType(collectionType));
         boolean nested = multiFile && isDeclaredIn(elementJava, cu, enumDeclarations);
         String elementProto = elementProtoType(elementJava, enumDeclarations, cu, multiFile, !nested);
+        String wrapperPackage = protoPackage(cu);
         Map<String, WrapperMessage> registry = nested
                 ? nestedWrappers.computeIfAbsent(cu, k -> new TreeMap<>())
                 : topLevelWrappers;
-        WrapperMessage existing = registry.get(elementProto);
+        String key = nested ? elementProto : wrapperPackage + "|" + elementProto;
+        WrapperMessage existing = registry.get(key);
         if (existing != null) {
             return existing;
         }
@@ -735,20 +919,29 @@ public class ProtoGenerator {
         if (!nested) {
             collectElementImports(elementJava, cu, enumDeclarations, imports);
         }
-        WrapperMessage wrapper = new WrapperMessage(uniqueWrapperName(elementProto, registry), elementProto, imports, nested);
-        registry.put(elementProto, wrapper);
+        // Nested wrappers live inside a message and cannot clash with generated Java classes: no suffix
+        String suffix = nested ? "" : nameSuffix;
+        String name = uniqueWrapperName(wrapperBaseName(elementProto, nameSuffix), suffix, wrapperPackage, registry);
+        WrapperMessage wrapper = new WrapperMessage(name, elementProto, imports, nested, wrapperPackage,
+                directoryOf(wrapperPackage) + name + ".proto");
+        registry.put(key, wrapper);
         return wrapper;
     }
 
-    private String uniqueWrapperName(String elementProto, Map<String, WrapperMessage> registry) {
+    private String uniqueWrapperName(String base, String suffix, String wrapperPackage, Map<String, WrapperMessage> registry) {
         Set<String> taken = new HashSet<>();
-        protoNames.values().forEach(n -> taken.add(n.toLowerCase(Locale.ROOT)));
-        topLevelWrappers.values().forEach(w -> taken.add(w.name.toLowerCase(Locale.ROOT)));
+        protoNames.forEach((type, n) -> {
+            if (!usePojoPackages || protoPackage(type).equals(wrapperPackage)) {
+                taken.add(n.toLowerCase(Locale.ROOT));
+            }
+        });
+        topLevelWrappers.values().stream()
+                .filter(w -> w.protoPackage.equals(wrapperPackage))
+                .forEach(w -> taken.add(w.name.toLowerCase(Locale.ROOT)));
         registry.values().forEach(w -> taken.add(w.name.toLowerCase(Locale.ROOT)));
-        String base = wrapperBaseName(elementProto);
-        String name = base;
+        String name = base + suffix;
         for (int i = 2; taken.contains(name.toLowerCase(Locale.ROOT)); i++) {
-            name = base + i;
+            name = base + i + suffix;
         }
         return name;
     }
@@ -759,11 +952,23 @@ public class ProtoGenerator {
      * A wrapper whose base name is taken by a generated type gets a numeric suffix.
      */
     static String wrapperBaseName(String elementProto) {
+        return wrapperBaseName(elementProto, "");
+    }
+
+    /**
+     * Like {@link #wrapperBaseName(String)}, dropping {@code nameSuffix} from each name part so that the suffix is
+     * only appended once, at the end: {@code AddressProto -> AddressList} (the caller adds the suffix:
+     * {@code AddressListProto}).
+     */
+    static String wrapperBaseName(String elementProto, String nameSuffix) {
         String[] parts = elementProto.split("\\.");
         StringBuilder name = new StringBuilder();
         for (String part : parts) {
             if (part.isEmpty() || (parts.length > 1 && Character.isLowerCase(part.charAt(0)))) {
-                continue; // proto package such as google.protobuf
+                continue; // proto package such as google.protobuf or com.example.dtos
+            }
+            if (!nameSuffix.isEmpty() && part.endsWith(nameSuffix) && part.length() > nameSuffix.length()) {
+                part = part.substring(0, part.length() - nameSuffix.length());
             }
             name.append(Character.toUpperCase(part.charAt(0))).append(part.substring(1));
         }

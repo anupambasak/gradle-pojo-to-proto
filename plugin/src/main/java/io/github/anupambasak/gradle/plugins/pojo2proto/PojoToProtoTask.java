@@ -19,6 +19,7 @@ package io.github.anupambasak.gradle.plugins.pojo2proto;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import org.gradle.api.DefaultTask;
+import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.provider.Property;
@@ -32,7 +33,6 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -42,6 +42,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public abstract class PojoToProtoTask extends DefaultTask {
+
+    static final String DEFAULT_NAME_SUFFIX = "Proto";
+    static final String DEFAULT_JAVA_PACKAGE_SUFFIX = ".proto";
 
     @InputFiles
     public abstract ConfigurableFileCollection getSource();
@@ -62,22 +65,69 @@ public abstract class PojoToProtoTask extends DefaultTask {
     @Optional
     public abstract Property<Boolean> getPrefixEnumNames();
 
+    /** Package shared by all files with the flat layout ({@code usePojoPackages = false}); defaults to the project group. */
     @Input
     @Optional
     public abstract Property<String> getPackageName();
 
     @Input
+    @Optional
+    public abstract Property<Boolean> getUsePojoPackages();
+
+    @Input
+    @Optional
+    public abstract Property<String> getNameSuffix();
+
+    @Input
+    @Optional
+    public abstract Property<String> getJavaPackageSuffix();
+
+    @Input
     public abstract Property<String> getProjectName();
 
+    /** Default for {@link #getPackageName()}. */
     @Input
     public abstract Property<String> getProjectGroup();
 
     @TaskAction
     public void execute() {
-        ProtoGenerator protoGenerator = new ProtoGenerator(getPrefixEnumNames().getOrElse(false));
         File destinationDirFile = getDestination().get().getAsFile();
         boolean singleFile = getSingleFile().getOrElse(false);
-        String packageName = getPackageName().getOrElse(getProjectGroup().get());
+        boolean usePojoPackages = getUsePojoPackages().getOrElse(!singleFile);
+        // packageName only applies to the flat layout; with usePojoPackages each file takes its POJO's package
+        String sharedPackage = usePojoPackages ? "" : getPackageName().getOrElse(getProjectGroup().getOrElse("")).trim();
+        String nameSuffix = getNameSuffix().getOrElse(DEFAULT_NAME_SUFFIX).trim();
+        String javaPackageSuffix = getJavaPackageSuffix().getOrElse(DEFAULT_JAVA_PACKAGE_SUFFIX).trim();
+
+        if (singleFile && usePojoPackages) {
+            throw new GradleException("pojoToProto: 'singleFile' and 'usePojoPackages' cannot be combined: "
+                    + "a single .proto file can only declare one package. Remove 'usePojoPackages = true'.");
+        }
+        if (!javaPackageSuffix.isEmpty() && !javaPackageSuffix.matches("(\\.[A-Za-z_][A-Za-z0-9_]*)+")) {
+            throw new GradleException("pojoToProto: 'javaPackageSuffix' must start with '.' and contain valid "
+                    + "Java identifiers, e.g. '.proto'; was '" + javaPackageSuffix + "'");
+        }
+        if (!nameSuffix.isEmpty() && !nameSuffix.matches("[A-Za-z0-9_]+")) {
+            throw new GradleException("pojoToProto: 'nameSuffix' may only contain letters, digits and '_'; was '"
+                    + nameSuffix + "'");
+        }
+        if (usePojoPackages && getPackageName().isPresent()) {
+            getLogger().warn("pojoToProto: 'packageName' is ignored because 'usePojoPackages' is enabled: each .proto "
+                    + "file uses the package of its POJO. Set 'usePojoPackages = false' (or 'singleFile = true') "
+                    + "to put all messages in '" + getPackageName().get() + "'.");
+        }
+        if (usePojoPackages && nameSuffix.isEmpty() && javaPackageSuffix.isEmpty()) {
+            getLogger().warn("pojoToProto: with 'usePojoPackages' and both 'nameSuffix' and 'javaPackageSuffix' empty, "
+                    + "the generated Java classes get the same fully qualified names as your POJOs, which fails "
+                    + "to compile if both end up on the same classpath.");
+        }
+
+        ProtoGenerator protoGenerator = new ProtoGenerator(new ProtoGenerator.Options()
+                .prefixEnumNames(getPrefixEnumNames().getOrElse(false))
+                .nameSuffix(nameSuffix)
+                .usePojoPackages(usePojoPackages)
+                .sharedPackage(sharedPackage)
+                .javaPackageSuffix(javaPackageSuffix));
 
         List<Path> excludedPaths = getExclude().getFiles().stream()
                 .map(f -> f.toPath().toAbsolutePath().normalize())
@@ -125,16 +175,10 @@ public abstract class PojoToProtoTask extends DefaultTask {
 
             allImports.removeIf(anImport -> allTypeNames.contains(anImport.replace(".proto", "")));
 
-            String header = protoGenerator.generateHeader(packageName, allImports);
+            String header = protoGenerator.generateHeader(sharedPackage, allImports);
             String protoContent = header + messages + enums + wrappers;
 
-            try {
-                Path protoFilePath = Paths.get(destinationDirFile.getAbsolutePath(), getProjectName().get() + ".proto");
-                Files.write(protoFilePath, protoContent.getBytes());
-                getLogger().lifecycle("Generated " + protoFilePath);
-            } catch (IOException e) {
-                getLogger().error("Error writing proto file", e);
-            }
+            writeProto(destinationDirFile, getProjectName().get() + ".proto", protoContent);
         } else {
             List<com.github.javaparser.ast.body.EnumDeclaration> allEnumDeclarations = new ArrayList<>();
             for (CompilationUnit cu : cus) {
@@ -146,49 +190,37 @@ public abstract class PojoToProtoTask extends DefaultTask {
                     List<com.github.javaparser.ast.body.EnumDeclaration> nestedEnums = cu.getPrimaryType().get().findAll(com.github.javaparser.ast.body.EnumDeclaration.class);
 
                     Set<String> imports = protoGenerator.getImports(cu, allEnumDeclarations);
-                    String header = protoGenerator.generateHeader(packageName, imports);
+                    String header = protoGenerator.generateHeader(protoGenerator.protoPackage(cu), imports);
                     String message = protoGenerator.generateMessageWithNestedEnums(cu, nestedEnums, allEnumDeclarations);
-                    String protoContent = header + message;
-
-                    cu.getPrimaryType().map(protoGenerator::protoName).ifPresent(className -> {
-                        try {
-                            Path protoFilePath = Paths.get(destinationDirFile.getAbsolutePath(), className + ".proto");
-                            Files.write(protoFilePath, protoContent.getBytes());
-                            getLogger().lifecycle("Generated " + protoFilePath);
-                        } catch (IOException e) {
-                            getLogger().error("Error writing proto file", e);
-                        }
-                    });
+                    writeProto(destinationDirFile, protoGenerator.protoFile(cu.getPrimaryType().get()), header + message);
                 }
             }
             for (com.github.javaparser.ast.body.EnumDeclaration enumDeclaration : allEnumDeclarations) {
                 if (enumDeclaration.getParentNode().isPresent() && enumDeclaration.getParentNode().get() instanceof CompilationUnit) {
-                    String header = protoGenerator.generateHeader(packageName, new TreeSet<>());
+                    String header = protoGenerator.generateHeader(protoGenerator.protoPackage(enumDeclaration), new TreeSet<>());
                     String enumContent = protoGenerator.generateEnum(enumDeclaration);
-                    String protoContent = header + enumContent;
-
-                    try {
-                        Path protoFilePath = Paths.get(destinationDirFile.getAbsolutePath(), protoGenerator.protoName(enumDeclaration) + ".proto");
-                        Files.write(protoFilePath, protoContent.getBytes());
-                        getLogger().lifecycle("Generated " + protoFilePath);
-                    } catch (IOException e) {
-                        getLogger().error("Error writing proto file", e);
-                    }
+                    writeProto(destinationDirFile, protoGenerator.protoFile(enumDeclaration), header + enumContent);
                 }
             }
             // Wrapper messages for collections that protobuf cannot repeat directly, e.g. the value of a
             // Map<String, List<MyPojo>> becomes MyPojoList { repeated MyPojo items = 1; } in MyPojoList.proto
             for (ProtoGenerator.WrapperMessage wrapper : protoGenerator.getTopLevelWrappers()) {
-                String protoContent = protoGenerator.generateHeader(packageName, wrapper.getImports())
+                String protoContent = protoGenerator.generateHeader(wrapper.getProtoPackage(), wrapper.getImports())
                         + protoGenerator.generateWrapperMessage(wrapper);
-                try {
-                    Path protoFilePath = Paths.get(destinationDirFile.getAbsolutePath(), wrapper.getName() + ".proto");
-                    Files.write(protoFilePath, protoContent.getBytes());
-                    getLogger().lifecycle("Generated " + protoFilePath);
-                } catch (IOException e) {
-                    getLogger().error("Error writing proto file", e);
-                }
+                writeProto(destinationDirFile, wrapper.getFile(), protoContent);
             }
+        }
+    }
+
+    /** Writes a .proto file at a path relative to the destination, creating package directories as needed. */
+    private void writeProto(File destinationDir, String relativePath, String content) {
+        try {
+            Path protoFilePath = destinationDir.toPath().resolve(relativePath);
+            Files.createDirectories(protoFilePath.getParent());
+            Files.write(protoFilePath, content.getBytes());
+            getLogger().lifecycle("Generated " + protoFilePath);
+        } catch (IOException e) {
+            getLogger().error("Error writing proto file " + relativePath, e);
         }
     }
 

@@ -7,7 +7,7 @@ buildscript {
         mavenCentral()
     }
     dependencies {
-        classpath "io.github.anupambasak.gradle-pojo-to-proto:plugin:0.1.4"
+        classpath "io.github.anupambasak.gradle-pojo-to-proto:plugin:0.2.0"
     }
 }
 
@@ -16,9 +16,8 @@ plugins{
 }
 
 ext{
-    protobufVersion = "4.33.6"
-//    protobufVersion = "4.36.2"
-    googleCommonProtosVersion = "2.75.0"
+    protobufVersion = "4.36.2"
+    googleCommonProtosVersion = "2.77.0"
 }
 
 
@@ -54,8 +53,6 @@ dependencies {
     implementation("com.fasterxml.jackson.core:jackson-annotations:2.18.2")
     implementation("com.google.guava:guava:33.5.0-jre")
 
-    // If you need to IMPORT these protos in your own .proto files
-    protobuf("com.google.api.grpc:proto-google-common-protos:${googleCommonProtosVersion}")
 
     compileOnly 'org.projectlombok:lombok:1.18.42'
     annotationProcessor 'org.projectlombok:lombok:1.18.42'
@@ -87,7 +84,9 @@ pojoToProto {
     exclude.from(project.layout.projectDirectory.file("src/main/java/io/github/anupambasak/gradle/dtos/LegacyPojo.java"))
     destination = project.layout.projectDirectory.dir("src/main/proto")
     prefixEnumNames = true
-    packageName = "com.anupambasak.gradle.proto"
+    usePojoPackages = true
+    nameSuffix = "Proto"
+    javaPackageSuffix = ".proto"
 }
 
 tasks.named('generateProto').configure {
@@ -103,7 +102,14 @@ tasks.named('test').configure {
 }
 
 tasks.named('clean').configure {
-    delete(fileTree(layout.projectDirectory.dir("src/main/proto")) {
-        include "**/*.proto"
-    })
+    def protoDir = layout.projectDirectory.dir("src/main/proto").asFile
+    doLast {
+        if (protoDir.exists()) {
+            protoDir.eachFile { f ->
+                if (f.name != '.gitkeep') {
+                    f.deleteDir()
+                }
+            }
+        }
+    }
 }
