@@ -60,5 +60,13 @@ public abstract class PojoToProtoExtension {
      * flat layout it only applies to {@code java_package}. Defaults to {@code ".proto"}; set to {@code ""} for none.
      */
     public abstract Property<String> getJavaPackageSuffix();
+    /**
+     * When {@code true} (the default), every singular field is generated as {@code optional} (proto3 explicit
+     * presence), so a field that was never set can be told apart from one set to {@code 0}, {@code false},
+     * {@code ""} or the first enum value: the generated Java has {@code hasX()}/{@code clearX()}, and a POJO
+     * {@code null} can be mapped to "not set". {@code repeated} and {@code map} fields cannot be optional and are
+     * unaffected. Set to {@code false} for plain proto3 fields.
+     */
+    public abstract Property<Boolean> getOptionalFields();
     public abstract Property<List<String>> getExcludeFields();
 }

@@ -82,6 +82,11 @@ public abstract class PojoToProtoTask extends DefaultTask {
     @Optional
     public abstract Property<String> getJavaPackageSuffix();
 
+    /** Mark singular fields {@code optional}; defaults to {@code true}. */
+    @Input
+    @Optional
+    public abstract Property<Boolean> getOptionalFields();
+
     @Input
     public abstract Property<String> getProjectName();
 
@@ -127,7 +132,8 @@ public abstract class PojoToProtoTask extends DefaultTask {
                 .nameSuffix(nameSuffix)
                 .usePojoPackages(usePojoPackages)
                 .sharedPackage(sharedPackage)
-                .javaPackageSuffix(javaPackageSuffix));
+                .javaPackageSuffix(javaPackageSuffix)
+                .optionalFields(getOptionalFields().getOrElse(true)));
 
         List<Path> excludedPaths = getExclude().getFiles().stream()
                 .map(f -> f.toPath().toAbsolutePath().normalize())

@@ -88,7 +88,7 @@ class PojoToProtoTaskLayoutTest {
         assertTrue(order.contains("option java_package = \"com.example.dtos.proto\";\n"), order);
         assertTrue(order.contains("import \"com/example/dtos/proto/AddressProto.proto\";\n"), order);
         assertTrue(order.contains("import \"com/example/enums/proto/OrderStatusProto.proto\";\n"), order);
-        assertTrue(order.contains("message OrderProto {\n  AddressProto shipTo = 1;\n  com.example.enums.proto.OrderStatusProto status = 2;\n}"), order);
+        assertTrue(order.contains("message OrderProto {\n  optional AddressProto shipTo = 1;\n  optional com.example.enums.proto.OrderStatusProto status = 2;\n}"), order);
     }
 
     @Test
@@ -106,7 +106,7 @@ class PojoToProtoTaskLayoutTest {
         String order = Files.readString(projectDir.resolve("out/com/example/dtos/OrderProto.proto"));
         assertTrue(order.contains("package com.example.dtos;\n"), order);
         assertTrue(order.contains("option java_package = \"com.example.dtos\";\n"), order);
-        assertTrue(order.contains("  com.example.enums.OrderStatusProto status = 2;"), order);
+        assertTrue(order.contains("  optional com.example.enums.OrderStatusProto status = 2;"), order);
     }
 
     @Test
@@ -117,6 +117,7 @@ class PojoToProtoTaskLayoutTest {
         ext.getUsePojoPackages().set(false);
         ext.getNameSuffix().set("");
         ext.getJavaPackageSuffix().set("");
+        ext.getOptionalFields().set(false);
 
         task(project).execute();
 
@@ -142,7 +143,7 @@ class PojoToProtoTaskLayoutTest {
         String order = Files.readString(projectDir.resolve("out/OrderProto.proto"));
         assertTrue(order.contains("package com.example.api;\n"), order);
         assertTrue(order.contains("option java_package = \"com.example.api.proto\";\n"), order);
-        assertTrue(order.contains("  OrderStatusProto status = 2;"), order);
+        assertTrue(order.contains("  optional OrderStatusProto status = 2;"), order);
     }
 
     @Test

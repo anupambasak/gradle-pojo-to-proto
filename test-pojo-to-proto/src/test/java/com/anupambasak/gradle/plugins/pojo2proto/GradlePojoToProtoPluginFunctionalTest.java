@@ -92,15 +92,15 @@ class GradlePojoToProtoPluginFunctionalTest {
         assertTrue(personPojoProtoContent.contains("import \"io/github/anupambasak/gradle/dtos/proto/AddressProto.proto\";"));
         assertTrue(personPojoProtoContent.contains("import \"google/protobuf/timestamp.proto\";"));
         assertTrue(personPojoProtoContent.contains("message PersonPojoProto {"));
-        assertTrue(personPojoProtoContent.contains("  string name = 1;"));
-        assertTrue(personPojoProtoContent.contains("  int32 age = 2;"));
-        assertTrue(personPojoProtoContent.contains("  int32 weight = 3;"));
+        assertTrue(personPojoProtoContent.contains("  optional string name = 1;"));
+        assertTrue(personPojoProtoContent.contains("  optional int32 age = 2;"));
+        assertTrue(personPojoProtoContent.contains("  optional int32 weight = 3;"));
         assertFalse(personPojoProtoContent.contains("import \"short.proto\";"), "Java primitives must not be imported");
-        assertTrue(personPojoProtoContent.contains("  AddressProto address = 4;"));
+        assertTrue(personPojoProtoContent.contains("  optional AddressProto address = 4;"));
         assertTrue(personPojoProtoContent.contains("  repeated AddressProto previousAddresses = 5;"));
         assertTrue(personPojoProtoContent.contains("  repeated AddressProto addressesHome = 6;"));
-        assertTrue(personPojoProtoContent.contains("  google.protobuf.Timestamp createdAt = 7;"));
-        assertTrue(personPojoProtoContent.contains("  google.protobuf.Timestamp dob = 8;"));
+        assertTrue(personPojoProtoContent.contains("  optional google.protobuf.Timestamp createdAt = 7;"));
+        assertTrue(personPojoProtoContent.contains("  optional google.protobuf.Timestamp dob = 8;"));
     }
 
     @Test
@@ -118,13 +118,13 @@ class GradlePojoToProtoPluginFunctionalTest {
         assertTrue(timePojoProtoContent.contains("import \"google/type/date.proto\";"));
         assertTrue(timePojoProtoContent.contains("import \"google/type/timeofday.proto\";"));
         assertTrue(timePojoProtoContent.contains("message TimePojoProto {"));
-        assertTrue(timePojoProtoContent.contains("  google.protobuf.Timestamp instant = 1;"));
-        assertTrue(timePojoProtoContent.contains("  google.protobuf.Timestamp zonedDateTime = 2;"));
-        assertTrue(timePojoProtoContent.contains("  google.protobuf.Timestamp localDateTime = 3;"));
-        assertTrue(timePojoProtoContent.contains("  google.type.Date localDate = 4;"));
-        assertTrue(timePojoProtoContent.contains("  google.type.TimeOfDay localTime = 5;"));
-        assertTrue(timePojoProtoContent.contains("  google.protobuf.Duration duration = 6;"));
-        assertTrue(timePojoProtoContent.contains("  string period = 7;"));
+        assertTrue(timePojoProtoContent.contains("  optional google.protobuf.Timestamp instant = 1;"));
+        assertTrue(timePojoProtoContent.contains("  optional google.protobuf.Timestamp zonedDateTime = 2;"));
+        assertTrue(timePojoProtoContent.contains("  optional google.protobuf.Timestamp localDateTime = 3;"));
+        assertTrue(timePojoProtoContent.contains("  optional google.type.Date localDate = 4;"));
+        assertTrue(timePojoProtoContent.contains("  optional google.type.TimeOfDay localTime = 5;"));
+        assertTrue(timePojoProtoContent.contains("  optional google.protobuf.Duration duration = 6;"));
+        assertTrue(timePojoProtoContent.contains("  optional string period = 7;"));
         assertTrue(timePojoProtoContent.contains("  repeated google.protobuf.Timestamp instants = 8;"));
         assertTrue(timePojoProtoContent.contains("  repeated google.protobuf.Timestamp zonedDateTimes = 9;"));
         assertTrue(timePojoProtoContent.contains("  repeated google.protobuf.Timestamp localDateTimes = 10;"));
@@ -132,9 +132,9 @@ class GradlePojoToProtoPluginFunctionalTest {
         assertTrue(timePojoProtoContent.contains("  repeated google.type.TimeOfDay localTimes = 12;"));
         assertTrue(timePojoProtoContent.contains("  repeated google.protobuf.Duration durations = 13;"));
         assertTrue(timePojoProtoContent.contains("  repeated string periods = 14;"));
-        assertTrue(timePojoProtoContent.contains("  google.protobuf.Timestamp date = 15;"));
+        assertTrue(timePojoProtoContent.contains("  optional google.protobuf.Timestamp date = 15;"));
         assertTrue(timePojoProtoContent.contains("  repeated google.protobuf.Timestamp dates = 16;"));
-        assertTrue(timePojoProtoContent.contains("  google.protobuf.Timestamp qualifiedDate = 17;"));
+        assertTrue(timePojoProtoContent.contains("  optional google.protobuf.Timestamp qualifiedDate = 17;"));
         assertFalse(timePojoProtoContent.contains("import \"Date.proto\";"), "java.util.Date must map to Timestamp, not a message");
     }
 
@@ -199,8 +199,8 @@ class GradlePojoToProtoPluginFunctionalTest {
         assertTrue(enumPojoProtoContent.contains("import \"io/github/anupambasak/gradle/testenums/proto/ContsProto.proto\";"));
         assertTrue(enumPojoProtoContent.contains("import \"io/github/anupambasak/gradle/testenums/proto/TestEnumProto.proto\";"));
         assertTrue(enumPojoProtoContent.contains("message EnumPojoProto {"));
-        assertTrue(enumPojoProtoContent.contains("  TestEnumProto testEnum = 1;"));
-        assertTrue(enumPojoProtoContent.contains("  ContsProto.b berthType = 2;"));
+        assertTrue(enumPojoProtoContent.contains("  optional TestEnumProto testEnum = 1;"));
+        assertTrue(enumPojoProtoContent.contains("  optional ContsProto.b berthType = 2;"));
 
         Path testEnumProtoPath = enums("TestEnumProto.proto");
         assertTrue(Files.exists(testEnumProtoPath), "TestEnumProto.proto should be generated");
@@ -373,9 +373,9 @@ class GradlePojoToProtoPluginFunctionalTest {
         assertFalse(sessionProto.contains("import \"io/github/anupambasak/gradle/testenums/proto/TxnTypeProto.proto\";"), "nested enums have no .proto file of their own");
         assertFalse(sessionProto.contains("import \"io/github/anupambasak/gradle/testenums/proto/RecordStatusProto.proto\";"), "nested enums have no .proto file of their own");
         assertTrue(sessionProto.contains("message SessionPojoProto {"));
-        assertTrue(sessionProto.contains("  int32 sessionNumber = 1;"));
-        assertTrue(sessionProto.contains("  io.github.anupambasak.gradle.testenums.proto.AppConstantsProto.TxnType txnType = 2;"));
-        assertTrue(sessionProto.contains("  io.github.anupambasak.gradle.testenums.proto.AppConstantsProto.RecordStatus recordStatus = 3;"));
+        assertTrue(sessionProto.contains("  optional int32 sessionNumber = 1;"));
+        assertTrue(sessionProto.contains("  optional io.github.anupambasak.gradle.testenums.proto.AppConstantsProto.TxnType txnType = 2;"));
+        assertTrue(sessionProto.contains("  optional io.github.anupambasak.gradle.testenums.proto.AppConstantsProto.RecordStatus recordStatus = 3;"));
         assertTrue(sessionProto.contains("  repeated io.github.anupambasak.gradle.testenums.proto.AppConstantsProto.TxnType txnHistory = 4;"));
 
         Path constantsProtoPath = enums("AppConstantsProto.proto");
@@ -430,11 +430,11 @@ class GradlePojoToProtoPluginFunctionalTest {
         String content = Files.readString(arrayPojoProtoPath);
         assertTrue(content.contains("import \"io/github/anupambasak/gradle/dtos/proto/AddressProto.proto\";"));
         assertFalse(content.contains("[]"), "array brackets must not leak into the proto");
-        assertTrue(content.contains("  AddressProto primaryAddress = 1;"));
+        assertTrue(content.contains("  optional AddressProto primaryAddress = 1;"));
         assertTrue(content.contains("  repeated AddressProto otherAddresses = 2;"));
         assertTrue(content.contains("  repeated string tags = 3;"));
         assertTrue(content.contains("  repeated int32 scores = 4;"));
-        assertTrue(content.contains("  bytes payload = 5;"));
+        assertTrue(content.contains("  optional bytes payload = 5;"));
     }
 
     @Test
@@ -481,19 +481,19 @@ class GradlePojoToProtoPluginFunctionalTest {
         assertFalse(apiResponse.contains("T.proto"), "type parameters must not be imported as messages");
         assertFalse(apiResponse.contains("serialVersionUID"), "static fields must be skipped");
         assertTrue(apiResponse.contains("message ApiResponseProto {"));
-        assertTrue(apiResponse.contains("  bool success = 1;"));
-        assertTrue(apiResponse.contains("  int32 errorCode = 2;"));
-        assertTrue(apiResponse.contains("  string message = 3;"));
-        assertTrue(apiResponse.contains("  google.protobuf.Any data = 4;"));
+        assertTrue(apiResponse.contains("  optional bool success = 1;"));
+        assertTrue(apiResponse.contains("  optional int32 errorCode = 2;"));
+        assertTrue(apiResponse.contains("  optional string message = 3;"));
+        assertTrue(apiResponse.contains("  optional google.protobuf.Any data = 4;"));
         assertTrue(apiResponse.contains("  repeated google.protobuf.Any items = 5;"));
-        assertTrue(apiResponse.contains("  google.protobuf.Any metadata = 6;"));
+        assertTrue(apiResponse.contains("  optional google.protobuf.Any metadata = 6;"));
         assertTrue(apiResponse.contains("  repeated google.protobuf.Any extras = 7;"));
         assertFalse(apiResponse.contains("Object.proto"), "java.lang.Object must map to Any, not a message");
 
         String envelope = Files.readString(dtos("ResponseEnvelopeProto.proto"));
         assertTrue(envelope.contains("import \"io/github/anupambasak/gradle/dtos/proto/ApiResponseProto.proto\";"));
         assertFalse(envelope.contains("<"), "type arguments must not leak into the proto");
-        assertTrue(envelope.contains("  ApiResponseProto addressResponse = 1;"));
+        assertTrue(envelope.contains("  optional ApiResponseProto addressResponse = 1;"));
         assertTrue(envelope.contains("  repeated ApiResponseProto history = 2;"));
     }
 
@@ -540,22 +540,22 @@ class GradlePojoToProtoPluginFunctionalTest {
         assertTrue(catalog.contains("package io.github.anupambasak.gradle.dtos.catalog.proto;"));
         assertTrue(catalog.contains("option java_package = \"io.github.anupambasak.gradle.dtos.catalog.proto\";"));
         assertTrue(catalog.contains("message PriceDetailDTOProto {"));
-        assertTrue(catalog.contains("  string sku = 1;"));
-        assertTrue(catalog.contains("  double listPrice = 2;"));
+        assertTrue(catalog.contains("  optional string sku = 1;"));
+        assertTrue(catalog.contains("  optional double listPrice = 2;"));
 
         String billing = Files.readString(billingPath);
         assertTrue(billing.contains("package io.github.anupambasak.gradle.dtos.billing.proto;"));
         assertTrue(billing.contains("message PriceDetailDtoProto {"));
         assertTrue(billing.contains("enum Kind {"));
         assertTrue(billing.contains("  KIND_CHARGE = 0;"));
-        assertTrue(billing.contains("  Kind kind = 3;"));
+        assertTrue(billing.contains("  optional Kind kind = 3;"));
 
         String summary = Files.readString(dtos("PriceSummaryPojoProto.proto"));
         assertTrue(summary.contains("import \"io/github/anupambasak/gradle/dtos/billing/proto/PriceDetailDtoProto.proto\";"));
         assertTrue(summary.contains("import \"io/github/anupambasak/gradle/dtos/catalog/proto/PriceDetailDTOProto.proto\";"));
-        assertTrue(summary.contains("  io.github.anupambasak.gradle.dtos.catalog.proto.PriceDetailDTOProto catalogPrice = 1;"));
+        assertTrue(summary.contains("  optional io.github.anupambasak.gradle.dtos.catalog.proto.PriceDetailDTOProto catalogPrice = 1;"));
         assertTrue(summary.contains("  repeated io.github.anupambasak.gradle.dtos.billing.proto.PriceDetailDtoProto billedPrices = 2;"));
-        assertTrue(summary.contains("  io.github.anupambasak.gradle.dtos.billing.proto.PriceDetailDtoProto.Kind lastKind = 3;"));
+        assertTrue(summary.contains("  optional io.github.anupambasak.gradle.dtos.billing.proto.PriceDetailDtoProto.Kind lastKind = 3;"));
     }
 
     @Test
@@ -681,5 +681,23 @@ class GradlePojoToProtoPluginFunctionalTest {
         assertEquals(mapPojo.getComplexMap().get("home").getStreet(), mapProto.getComplexMapMap().get("home").getStreet());
     }
 
-}
+    @Test
+    void optionalFieldsDistinguishUnsetFromDefaultValues() throws Exception {
+        PersonPojoProto empty = PersonPojoProto.getDefaultInstance();
+        assertFalse(empty.hasName());
+        assertFalse(empty.hasAge());
 
+        PersonPojoProto zeroed = PersonPojoProto.newBuilder().setName("").setAge(0).build();
+        assertTrue(zeroed.hasName(), "\"\" set explicitly must be distinguishable from unset");
+        assertTrue(zeroed.hasAge(), "0 set explicitly must be distinguishable from unset");
+        assertEquals(0, zeroed.getAge());
+
+        // presence survives the wire
+        PersonPojoProto parsed = PersonPojoProto.parseFrom(zeroed.toByteArray());
+        assertTrue(parsed.hasAge());
+        assertTrue(parsed.hasName());
+        assertFalse(parsed.hasCreatedAt());
+
+        assertFalse(PersonPojoProto.newBuilder().setAge(0).clearAge().build().hasAge());
+    }
+}

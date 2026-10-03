@@ -29,6 +29,7 @@ public class GradlePojoToProtoPlugin implements Plugin<Project> {
         extension.getUsePojoPackages().convention(extension.getSingleFile().map(singleFile -> !singleFile));
         extension.getNameSuffix().convention(PojoToProtoTask.DEFAULT_NAME_SUFFIX);
         extension.getJavaPackageSuffix().convention(PojoToProtoTask.DEFAULT_JAVA_PACKAGE_SUFFIX);
+        extension.getOptionalFields().convention(true);
 
         project.getTasks().register("pojoToProto", PojoToProtoTask.class, task -> {
             task.getSource().from(extension.getSource());
@@ -40,6 +41,7 @@ public class GradlePojoToProtoPlugin implements Plugin<Project> {
             task.getUsePojoPackages().set(extension.getUsePojoPackages());
             task.getNameSuffix().set(extension.getNameSuffix());
             task.getJavaPackageSuffix().set(extension.getJavaPackageSuffix());
+            task.getOptionalFields().set(extension.getOptionalFields());
             task.getProjectName().set(project.getName());
             task.getProjectGroup().set(project.getGroup().toString());
         });

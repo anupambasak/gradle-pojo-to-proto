@@ -55,6 +55,7 @@ public class ProtoGenerator {
         private boolean usePojoPackages;
         private String sharedPackage = "";
         private String javaPackageSuffix = "";
+        private boolean optionalFields;
 
         /** Prefix enum values with the enum name in UPPER_SNAKE_CASE. */
         public Options prefixEnumNames(boolean prefixEnumNames) {
@@ -100,6 +101,16 @@ public class ProtoGenerator {
             this.javaPackageSuffix = javaPackageSuffix == null ? "" : javaPackageSuffix.trim();
             return this;
         }
+
+        /**
+         * Mark every singular field {@code optional} (proto3 explicit presence), so an unset field can be told apart
+         * from one set to its default ({@code 0}, {@code false}, {@code ""}, first enum value) via {@code hasX()} and
+         * {@code clearX()}. {@code repeated} and {@code map} fields cannot be optional in protobuf and are left as is.
+         */
+        public Options optionalFields(boolean optionalFields) {
+            this.optionalFields = optionalFields;
+            return this;
+        }
     }
 
     private final boolean prefixEnumNames;
@@ -107,6 +118,7 @@ public class ProtoGenerator {
     private final boolean usePojoPackages;
     private final String sharedPackage;
     private final String javaPackageSuffix;
+    private final boolean optionalFields;
 
     /** Proto names of the top-level types registered with {@link #registerTypes}, keyed by declaration identity. */
     private final Map<TypeDeclaration<?>, String> protoNames = new IdentityHashMap<>();
@@ -128,6 +140,7 @@ public class ProtoGenerator {
         this.usePojoPackages = options.usePojoPackages;
         this.sharedPackage = options.sharedPackage;
         this.javaPackageSuffix = options.javaPackageSuffix;
+        this.optionalFields = options.optionalFields;
     }
 
     /**
@@ -356,7 +369,7 @@ public class ProtoGenerator {
                     String fieldName = variable.getNameAsString();
                     String fieldType = variable.getType().asString();
                     String protoType = getProtoType(fieldType, enumDeclarations, cu, false);
-                    messageBuilder.append(String.format("  %s %s = %d;\n", protoType, fieldName, index.getAndIncrement()));
+                    messageBuilder.append(fieldLine(protoType, fieldName, index.getAndIncrement()));
                 }
             });
 
@@ -365,6 +378,13 @@ public class ProtoGenerator {
         return messageBuilder.toString();
     }
     
+    /** One field declaration, with the {@code optional} label added to singular fields when {@link Options#optionalFields} is on. */
+    private String fieldLine(String protoType, String fieldName, int number) {
+        boolean singular = !protoType.startsWith("repeated ") && !protoType.startsWith("map<");
+        String label = optionalFields && singular ? "optional " : "";
+        return String.format("  %s%s %s = %d;\n", label, protoType, fieldName, number);
+    }
+
     public String generateMessageWithNestedEnums(CompilationUnit cu, List<EnumDeclaration> nestedEnums, List<EnumDeclaration> allEnums) {
         StringBuilder messageBuilder = new StringBuilder();
         primaryProtoName(cu).ifPresent(className -> {
@@ -385,7 +405,7 @@ public class ProtoGenerator {
                                 String fieldName = variable.getNameAsString();
                                 String fieldType = variable.getType().asString();
                                 String protoType = getProtoType(fieldType, allEnums, cu, true);
-                                fieldsBuilder.append(String.format("  %s %s = %d;\n", protoType, fieldName, index.getAndIncrement()));
+                                fieldsBuilder.append(fieldLine(protoType, fieldName, index.getAndIncrement()));
                             }
                         });
             }
