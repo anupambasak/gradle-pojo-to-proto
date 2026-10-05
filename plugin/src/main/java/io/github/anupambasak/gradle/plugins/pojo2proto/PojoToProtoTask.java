@@ -216,6 +216,10 @@ public abstract class PojoToProtoTask extends DefaultTask {
                 writeProto(destinationDirFile, wrapper.getFile(), protoContent);
             }
         }
+
+        protoGenerator.unresolvedSuperclasses().forEach(unresolved ->
+                getLogger().warn("pojoToProto: '" + unresolved + "': the superclass is not among the sources, "
+                        + "so its fields are not included in the generated message"));
     }
 
     /** Writes a .proto file at a path relative to the destination, creating package directories as needed. */

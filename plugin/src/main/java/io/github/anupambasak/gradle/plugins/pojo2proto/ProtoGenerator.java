@@ -19,19 +19,27 @@ package io.github.anupambasak.gradle.plugins.pojo2proto;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.ImportDeclaration;
 import com.github.javaparser.ast.Node;
+import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.EnumDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
 import com.github.javaparser.ast.body.TypeDeclaration;
 import com.github.javaparser.ast.body.VariableDeclarator;
 import com.github.javaparser.ast.nodeTypes.NodeWithTypeParameters;
+import com.github.javaparser.ast.type.ClassOrInterfaceType;
+import com.github.javaparser.ast.type.Type;
 import com.github.javaparser.ast.type.TypeParameter;
+import com.github.javaparser.ast.type.WildcardType;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -40,6 +48,7 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -125,6 +134,8 @@ public class ProtoGenerator {
     /** Same as {@link #protoNames} but without {@link Options#nameSuffix}; used for enum value prefixes. */
     private final Map<TypeDeclaration<?>, String> baseNames = new IdentityHashMap<>();
     private final List<TypeDeclaration<?>> topLevelTypes = new ArrayList<>();
+    /** Superclasses that could not be found among the sources, as {@code com.x.Child extends Parent}. */
+    private final Set<String> unresolvedSuperclasses = new TreeSet<>();
 
     public ProtoGenerator() {
         this(false);
@@ -159,6 +170,7 @@ public class ProtoGenerator {
         protoNames.clear();
         baseNames.clear();
         topLevelTypes.clear();
+        unresolvedSuperclasses.clear();
         topLevelWrappers.clear();
         nestedWrappers.clear();
         for (CompilationUnit cu : cus) {
@@ -361,17 +373,11 @@ public class ProtoGenerator {
         primaryProtoName(cu).ifPresent(className -> {
             messageBuilder.append("message ").append(className).append(" {\n");
 
-            AtomicInteger index = new AtomicInteger(1);
-            cu.findAll(FieldDeclaration.class).stream()
-                    .filter(field -> !field.isStatic()) // e.g. serialVersionUID
-                    .forEach(field -> {
-                for (VariableDeclarator variable : field.getVariables()) {
-                    String fieldName = variable.getNameAsString();
-                    String fieldType = variable.getType().asString();
-                    String protoType = getProtoType(fieldType, enumDeclarations, cu, false);
-                    messageBuilder.append(fieldLine(protoType, fieldName, index.getAndIncrement()));
-                }
-            });
+            int index = 1;
+            for (MessageField field : messageFields(cu, enumDeclarations)) {
+                String protoType = getProtoType(field.javaType(), enumDeclarations, cu, false);
+                messageBuilder.append(fieldLine(protoType, field.name(), index++));
+            }
 
             messageBuilder.append("}\n\n");
         });
@@ -395,19 +401,10 @@ public class ProtoGenerator {
             }
 
             StringBuilder fieldsBuilder = new StringBuilder();
-            if (!(cu.getPrimaryType().isPresent() && cu.getPrimaryType().get().isClassOrInterfaceDeclaration() && cu.getPrimaryType().get().asClassOrInterfaceDeclaration().isInterface())) {
-                AtomicInteger index = new AtomicInteger(1);
-                cu.findAll(FieldDeclaration.class).stream()
-                        .filter(field -> !field.isStatic()) // Filter out static fields
-                        .filter(field -> field.getParentNode().isPresent() && field.getParentNode().get().equals(cu.getPrimaryType().get()))
-                        .forEach(field -> {
-                            for (VariableDeclarator variable : field.getVariables()) {
-                                String fieldName = variable.getNameAsString();
-                                String fieldType = variable.getType().asString();
-                                String protoType = getProtoType(fieldType, allEnums, cu, true);
-                                fieldsBuilder.append(fieldLine(protoType, fieldName, index.getAndIncrement()));
-                            }
-                        });
+            int index = 1;
+            for (MessageField field : messageFields(cu, allEnums)) {
+                String protoType = getProtoType(field.javaType(), allEnums, cu, true);
+                fieldsBuilder.append(fieldLine(protoType, field.name(), index++));
             }
             // Wrappers discovered while mapping the fields, whose element lives in this same file
             for (WrapperMessage wrapper : nestedWrappers.getOrDefault(cu, Map.of()).values()) {
@@ -462,15 +459,138 @@ public class ProtoGenerator {
 
     public Set<String> getImports(CompilationUnit cu, List<EnumDeclaration> enumDeclarations) {
         Set<String> imports = new TreeSet<>();
-        cu.findAll(FieldDeclaration.class).stream()
-                .filter(field -> !field.isStatic()) // Filter out static fields
-                .filter(field -> field.getParentNode().isPresent() && field.getParentNode().get().equals(cu.getPrimaryType().get()))
-                .forEach(field -> {
-            for (VariableDeclarator variable : field.getVariables()) {
-                collectImports(variable.getType().asString(), cu, enumDeclarations, imports);
-            }
-        });
+        for (MessageField field : messageFields(cu, enumDeclarations)) {
+            collectImports(field.javaType(), cu, enumDeclarations, imports);
+        }
         return imports;
+    }
+
+    /**
+     * A field of a generated message. {@code javaType} is valid as seen from the message's own compilation unit:
+     * for an inherited field it is rewritten with fully qualified names of the source types it uses, and with the
+     * superclass's type parameters replaced by the type arguments of the {@code extends} clause.
+     */
+    record MessageField(String name, String javaType) {
+    }
+
+    /**
+     * The fields of the message generated for {@code cu}'s primary type: the instance fields inherited from its
+     * superclasses (the topmost superclass first), then its own. Superclasses are followed as long as they are
+     * among the parsed sources; an unknown one ends the chain and is reported by {@link #unresolvedSuperclasses()}.
+     * A field that redeclares (hides) an inherited field of the same name is skipped, so the inherited one keeps
+     * its position. Interfaces have no instance fields and generate no fields.
+     * <p>
+     * Field numbers follow this order, so adding a field to a superclass renumbers the fields of every subclass.
+     */
+    List<MessageField> messageFields(CompilationUnit cu, List<EnumDeclaration> enumDeclarations) {
+        TypeDeclaration<?> type = cu.getPrimaryType().orElse(null);
+        if (type == null || (type instanceof ClassOrInterfaceDeclaration cls && cls.isInterface())) {
+            return List.of();
+        }
+        // Own fields, as written: they are already relative to cu
+        Deque<List<MessageField>> levels = new ArrayDeque<>();
+        levels.push(declaredFields(type, variable -> variable.getType().asString()));
+
+        Set<TypeDeclaration<?>> visited = Collections.newSetFromMap(new IdentityHashMap<>());
+        visited.add(type);
+        TypeDeclaration<?> current = type;
+        CompilationUnit currentCu = cu;
+        Map<String, String> bindings = Map.of();
+        while (current instanceof ClassOrInterfaceDeclaration cls && !cls.getExtendedTypes().isEmpty()) {
+            ClassOrInterfaceType extended = cls.getExtendedTypes().get(0);
+            Optional<ClassOrInterfaceDeclaration> superclass = resolveType(extended.getNameWithScope(), currentCu, topLevelTypes)
+                    .filter(t -> t instanceof ClassOrInterfaceDeclaration c && !c.isInterface())
+                    .map(t -> (ClassOrInterfaceDeclaration) t);
+            if (superclass.isEmpty()) {
+                unresolvedSuperclasses.add(fullyQualifiedName(current) + " extends " + extended.getNameWithScope());
+                break;
+            }
+            if (!visited.add(superclass.get())) {
+                break; // cyclic hierarchy in broken sources
+            }
+            // Bind the superclass's type parameters to the type arguments given in the extends clause
+            List<TypeParameter> parameters = superclass.get().getTypeParameters();
+            List<Type> arguments = extended.getTypeArguments().map(List::copyOf).orElse(List.of());
+            Map<String, String> superBindings = new HashMap<>();
+            for (int i = 0; i < parameters.size(); i++) {
+                superBindings.put(parameters.get(i).getNameAsString(), i < arguments.size()
+                        ? qualifiedType(arguments.get(i), currentCu, bindings, enumDeclarations)
+                        : "Object"); // raw type
+            }
+            CompilationUnit superCu = superclass.get().findCompilationUnit().orElse(currentCu);
+            levels.push(declaredFields(superclass.get(),
+                    variable -> qualifiedType(variable.getType(), superCu, superBindings, enumDeclarations)));
+
+            current = superclass.get();
+            currentCu = superCu;
+            bindings = superBindings;
+        }
+
+        Map<String, MessageField> fields = new LinkedHashMap<>();
+        for (List<MessageField> level : levels) { // topmost superclass first
+            for (MessageField field : level) {
+                fields.putIfAbsent(field.name(), field);
+            }
+        }
+        return new ArrayList<>(fields.values());
+    }
+
+    /** Superclasses that were not among the sources, so their fields could not be inherited. */
+    public Set<String> unresolvedSuperclasses() {
+        return Collections.unmodifiableSet(unresolvedSuperclasses);
+    }
+
+    /** The non-static fields declared directly in {@code type} (not in its nested types). */
+    private static List<MessageField> declaredFields(TypeDeclaration<?> type, Function<VariableDeclarator, String> javaType) {
+        List<MessageField> fields = new ArrayList<>();
+        for (FieldDeclaration field : type.getFields()) {
+            if (field.isStatic()) {
+                continue; // e.g. serialVersionUID
+            }
+            for (VariableDeclarator variable : field.getVariables()) {
+                fields.add(new MessageField(variable.getNameAsString(), javaType.apply(variable)));
+            }
+        }
+        return fields;
+    }
+
+    /**
+     * Renders a type written in {@code cu} so that it means the same from any other compilation unit: source
+     * types and enums become fully qualified, and type variables are replaced using {@code bindings}
+     * ({@code Map<String, List<T>>} with {@code T -> com.x.User} becomes {@code Map<String, List<com.x.User>>}).
+     */
+    private String qualifiedType(Type type, CompilationUnit cu, Map<String, String> bindings, List<EnumDeclaration> enumDeclarations) {
+        if (type.isArrayType()) {
+            return qualifiedType(type.asArrayType().getComponentType(), cu, bindings, enumDeclarations) + "[]";
+        }
+        if (type.isWildcardType()) {
+            WildcardType wildcard = type.asWildcardType();
+            if (wildcard.getExtendedType().isPresent()) {
+                return "? extends " + qualifiedType(wildcard.getExtendedType().get(), cu, bindings, enumDeclarations);
+            }
+            if (wildcard.getSuperType().isPresent()) {
+                return "? super " + qualifiedType(wildcard.getSuperType().get(), cu, bindings, enumDeclarations);
+            }
+            return "?";
+        }
+        if (!type.isClassOrInterfaceType()) {
+            return type.asString();
+        }
+        ClassOrInterfaceType classType = type.asClassOrInterfaceType();
+        String name = classType.getNameWithScope();
+        if (classType.getScope().isEmpty() && bindings.containsKey(name)) {
+            return bindings.get(name);
+        }
+        Optional<TypeDeclaration<?>> declaration = resolveEnum(name, cu, enumDeclarations)
+                .<TypeDeclaration<?>>map(e -> e)
+                .or(() -> resolveType(name, cu, topLevelTypes));
+        String qualified = declaration.flatMap(TypeDeclaration::getFullyQualifiedName).orElse(name);
+        String arguments = classType.getTypeArguments()
+                .map(args -> args.stream()
+                        .map(arg -> qualifiedType(arg, cu, bindings, enumDeclarations))
+                        .collect(Collectors.joining(", ", "<", ">")))
+                .orElse("");
+        return qualified + arguments;
     }
 
     /** Adds the .proto imports a Java field type needs, walking arrays, collections and maps. */

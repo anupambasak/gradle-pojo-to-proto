@@ -18,9 +18,13 @@ package com.anupambasak.gradle.plugins.pojo2proto;
 
 import io.github.anupambasak.gradle.dtos.Address;
 import io.github.anupambasak.gradle.dtos.ArrayPojo;
+import io.github.anupambasak.gradle.dtos.AddressPage;
 import io.github.anupambasak.gradle.dtos.PersonPojo;
 import io.github.anupambasak.gradle.dtos.SessionPojo;
 import io.github.anupambasak.gradle.dtos.TimePojo;
+import io.github.anupambasak.gradle.dtos.VipCustomerPojo;
+import io.github.anupambasak.gradle.dtos.base.AuditedEntity;
+import io.github.anupambasak.gradle.dtos.base.proto.AuditedEntityProto;
 import io.github.anupambasak.gradle.testenums.Conts;
 import io.github.anupambasak.gradle.testenums.EnumPojo;
 import io.github.anupambasak.gradle.testenums.AppConstants;
@@ -28,6 +32,7 @@ import io.github.anupambasak.gradle.testenums.TestEnum;
 import io.github.anupambasak.gradle.dtos.billing.proto.PriceDetailDtoProto;
 import io.github.anupambasak.gradle.dtos.catalog.proto.PriceDetailDTOProto;
 import io.github.anupambasak.gradle.dtos.proto.AddressListProto;
+import io.github.anupambasak.gradle.dtos.proto.AddressPageProto;
 import io.github.anupambasak.gradle.dtos.proto.AddressProto;
 import io.github.anupambasak.gradle.dtos.proto.ApiResponseProto;
 import io.github.anupambasak.gradle.dtos.proto.ArrayPojoProto;
@@ -40,6 +45,7 @@ import io.github.anupambasak.gradle.dtos.proto.ResponseEnvelopeProto;
 import io.github.anupambasak.gradle.dtos.proto.SessionPojoProto;
 import io.github.anupambasak.gradle.dtos.proto.StringListProto;
 import io.github.anupambasak.gradle.dtos.proto.TimePojoProto;
+import io.github.anupambasak.gradle.dtos.proto.VipCustomerPojoProto;
 import io.github.anupambasak.gradle.testenums.proto.AppConstantsProto;
 import io.github.anupambasak.gradle.testenums.proto.ContsProto;
 import io.github.anupambasak.gradle.testenums.proto.EnumPojoProto;
@@ -699,5 +705,104 @@ class GradlePojoToProtoPluginFunctionalTest {
         assertFalse(parsed.hasCreatedAt());
 
         assertFalse(PersonPojoProto.newBuilder().setAge(0).clearAge().build().hasAge());
+    }
+
+    @Test
+    void verifyInheritedFieldsAreFlattenedIntoTheSubclassMessage() throws IOException {
+        // AuditedEntity (dtos.base) -> CustomerPojo -> VipCustomerPojo: topmost superclass fields first
+        String vip = Files.readString(dtos("VipCustomerPojoProto.proto"));
+        assertTrue(vip.contains("import \"google/protobuf/timestamp.proto\";"));
+        assertTrue(vip.contains("import \"io/github/anupambasak/gradle/dtos/base/proto/AuditedEntityProto.proto\";"),
+                "the inherited nested enum lives in the superclass's file");
+        assertTrue(vip.contains("import \"io/github/anupambasak/gradle/dtos/proto/AddressProto.proto\";"));
+        assertFalse(vip.contains("serialVersionUID"), "inherited static fields must be skipped");
+        assertTrue(vip.contains("message VipCustomerPojoProto {\n"
+                + "  optional string id = 1;\n"
+                + "  optional google.protobuf.Timestamp createdAt = 2;\n"
+                + "  optional io.github.anupambasak.gradle.dtos.base.proto.AuditedEntityProto.Origin origin = 3;\n"
+                + "  optional string name = 4;\n"
+                + "  optional AddressProto address = 5;\n"
+                + "  optional int32 tier = 6;\n"
+                + "}"), vip);
+
+        String customer = Files.readString(dtos("CustomerPojoProto.proto"));
+        assertTrue(customer.contains("  optional string id = 1;"));
+        assertTrue(customer.contains("  optional string name = 4;"));
+        assertTrue(customer.contains("  optional AddressProto address = 5;"));
+
+        // The abstract superclass still gets its own message, with its nested enum
+        String audited = Files.readString(protoFile("dtos/base", "AuditedEntityProto.proto"));
+        assertTrue(audited.contains("message AuditedEntityProto {"));
+        assertTrue(audited.contains("enum Origin {"));
+        assertTrue(audited.contains("  optional string id = 1;"));
+    }
+
+    @Test
+    void verifyGenericSuperclassTypeParameterIsBound() throws IOException {
+        // AddressPage extends Page<Address>: Page's List<T> items becomes repeated AddressProto
+        String page = Files.readString(dtos("AddressPageProto.proto"));
+        assertTrue(page.contains("import \"io/github/anupambasak/gradle/dtos/proto/AddressProto.proto\";"));
+        assertFalse(page.contains("google/protobuf/any.proto"), "a bound type parameter must not fall back to Any");
+        assertTrue(page.contains("message AddressPageProto {\n"
+                + "  repeated AddressProto items = 1;\n"
+                + "  optional int32 total = 2;\n"
+                + "  optional string cursor = 3;\n"
+                + "}"), page);
+
+        // Page<T> itself keeps T unbound
+        String generic = Files.readString(protoFile("dtos/base", "PageProto.proto"));
+        assertTrue(generic.contains("  repeated google.protobuf.Any items = 1;"));
+    }
+
+    @Test
+    void verifyProtoFromInheritedPojo() throws Exception {
+        Address address = new Address();
+        address.setStreet("7 Heritage Ln");
+        address.setCity("Baseville");
+        address.setZipCode(54321);
+
+        VipCustomerPojo pojo = new VipCustomerPojo();
+        pojo.setId("cust-1");                                   // AuditedEntity
+        pojo.setCreatedAt(Instant.ofEpochSecond(1_700_000_000L)); // AuditedEntity
+        pojo.setOrigin(AuditedEntity.Origin.API);              // AuditedEntity
+        pojo.setName("Ada");                                    // CustomerPojo
+        pojo.setAddress(address);                               // CustomerPojo
+        pojo.setTier(3);
+
+        VipCustomerPojoProto proto = VipCustomerPojoProto.newBuilder()
+                .setId(pojo.getId())
+                .setCreatedAt(Timestamp.newBuilder().setSeconds(pojo.getCreatedAt().getEpochSecond()).build())
+                .setOrigin(AuditedEntityProto.Origin.forNumber(pojo.getOrigin().ordinal()))
+                .setName(pojo.getName())
+                .setAddress(AddressProto.newBuilder()
+                        .setStreet(address.getStreet())
+                        .setCity(address.getCity())
+                        .setZipCode(address.getZipCode())
+                        .build())
+                .setTier(pojo.getTier())
+                .build();
+
+        VipCustomerPojoProto parsed = VipCustomerPojoProto.parseFrom(proto.toByteArray());
+        assertEquals("cust-1", parsed.getId());
+        assertEquals(1_700_000_000L, parsed.getCreatedAt().getSeconds());
+        assertEquals(AuditedEntityProto.Origin.ORIGIN_API, parsed.getOrigin());
+        assertEquals("Ada", parsed.getName());
+        assertEquals("Baseville", parsed.getAddress().getCity());
+        assertEquals(3, parsed.getTier());
+
+        AddressPage addressPage = new AddressPage();
+        addressPage.setItems(List.of(address));
+        addressPage.setTotal(1);
+        addressPage.setCursor("next");
+
+        AddressPageProto pageProto = AddressPageProto.newBuilder()
+                .addItems(proto.getAddress())
+                .setTotal(addressPage.getTotal())
+                .setCursor(addressPage.getCursor())
+                .build();
+        AddressPageProto parsedPage = AddressPageProto.parseFrom(pageProto.toByteArray());
+        assertEquals(addressPage.getItems().get(0).getStreet(), parsedPage.getItems(0).getStreet());
+        assertEquals(1, parsedPage.getTotal());
+        assertEquals("next", parsedPage.getCursor());
     }
 }
