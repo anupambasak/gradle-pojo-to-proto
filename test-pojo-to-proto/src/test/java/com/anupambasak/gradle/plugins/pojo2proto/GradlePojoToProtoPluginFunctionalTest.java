@@ -18,6 +18,7 @@ package com.anupambasak.gradle.plugins.pojo2proto;
 
 import io.github.anupambasak.gradle.dtos.Address;
 import io.github.anupambasak.gradle.dtos.ArrayPojo;
+import io.github.anupambasak.gradle.dtos.BigNumberPojo;
 import io.github.anupambasak.gradle.dtos.AddressPage;
 import io.github.anupambasak.gradle.dtos.PersonPojo;
 import io.github.anupambasak.gradle.dtos.SessionPojo;
@@ -36,6 +37,7 @@ import io.github.anupambasak.gradle.dtos.proto.AddressPageProto;
 import io.github.anupambasak.gradle.dtos.proto.AddressProto;
 import io.github.anupambasak.gradle.dtos.proto.ApiResponseProto;
 import io.github.anupambasak.gradle.dtos.proto.ArrayPojoProto;
+import io.github.anupambasak.gradle.dtos.proto.BigNumberPojoProto;
 import io.github.anupambasak.gradle.dtos.proto.CollectionPojoProto;
 import io.github.anupambasak.gradle.dtos.proto.GroupedPojoProto;
 import io.github.anupambasak.gradle.dtos.proto.MapPojoProto;
@@ -426,6 +428,71 @@ class GradlePojoToProtoPluginFunctionalTest {
         assertFalse(Files.exists(dtos("LegacyPojoProto.proto")), "an excluded file must be skipped");
         // the rest of the same source directory is still generated
         assertTrue(Files.exists(dtos("PersonPojoProto.proto")));
+    }
+
+    @Test
+    void verifyBigNumberPojoProtoContent() throws IOException {
+        Path path = dtos("BigNumberPojoProto.proto");
+        assertTrue(Files.exists(path), "BigNumberPojoProto.proto should be generated");
+
+        String content = Files.readString(path);
+        assertTrue(content.contains("import \"google/type/decimal.proto\";"));
+        assertTrue(content.contains("  optional string bigInteger = 1;"));
+        assertTrue(content.contains("  optional google.type.Decimal bigDecimal = 2;"));
+        assertTrue(content.contains("  optional google.type.Decimal qualifiedBigDecimal = 3;"));
+        assertTrue(content.contains("  repeated string bigIntegers = 4;"));
+        assertTrue(content.contains("  repeated google.type.Decimal bigDecimals = 5;"));
+    }
+
+    @Test
+    void verifyProtoFromBigNumberPojo() {
+        BigNumberPojo pojo = new BigNumberPojo();
+        pojo.setBigInteger(new java.math.BigInteger("123456789012345678901234567890"));
+        pojo.setBigDecimal(new java.math.BigDecimal("12345.6789"));
+        pojo.setBigIntegers(List.of(java.math.BigInteger.ONE, java.math.BigInteger.TEN));
+        pojo.setBigDecimals(List.of(new java.math.BigDecimal("0.10"), new java.math.BigDecimal("-2.5")));
+
+        BigNumberPojoProto.Builder builder = BigNumberPojoProto.newBuilder()
+                .setBigInteger(pojo.getBigInteger().toString())
+                .setBigDecimal(com.google.type.Decimal.newBuilder().setValue(pojo.getBigDecimal().toPlainString()));
+        pojo.getBigIntegers().forEach(v -> builder.addBigIntegers(v.toString()));
+        pojo.getBigDecimals().forEach(v ->
+                builder.addBigDecimals(com.google.type.Decimal.newBuilder().setValue(v.toPlainString())));
+        BigNumberPojoProto proto = builder.build();
+
+        assertEquals(pojo.getBigInteger(), new java.math.BigInteger(proto.getBigInteger()));
+        assertEquals(pojo.getBigDecimal(), new java.math.BigDecimal(proto.getBigDecimal().getValue()));
+        assertEquals(List.of("1", "10"), proto.getBigIntegersList());
+        assertEquals(new java.math.BigDecimal("-2.5"), new java.math.BigDecimal(proto.getBigDecimals(1).getValue()));
+    }
+
+    @Test
+    void verifyBigNumberPojoUnsetAndWireRoundTrip() throws Exception {
+        // null / unset must be distinguishable from zero for singular fields
+        BigNumberPojoProto empty = BigNumberPojoProto.getDefaultInstance();
+        assertFalse(empty.hasBigInteger());
+        assertFalse(empty.hasBigDecimal());
+        assertEquals(0, empty.getBigIntegersCount());
+
+        // zero is a real value, not unset
+        BigNumberPojoProto zero = BigNumberPojoProto.newBuilder()
+                .setBigInteger(java.math.BigInteger.ZERO.toString())
+                .setBigDecimal(com.google.type.Decimal.newBuilder().setValue(java.math.BigDecimal.ZERO.toPlainString()))
+                .build();
+        assertTrue(zero.hasBigInteger());
+        assertTrue(zero.hasBigDecimal());
+
+        // values beyond long/double precision survive serialization
+        java.math.BigInteger huge = java.math.BigInteger.TWO.pow(200).add(java.math.BigInteger.ONE);
+        java.math.BigDecimal precise = new java.math.BigDecimal("3.141592653589793238462643383279502884197");
+        BigNumberPojoProto original = BigNumberPojoProto.newBuilder()
+                .setBigInteger(huge.toString())
+                .setBigDecimal(com.google.type.Decimal.newBuilder().setValue(precise.toPlainString()))
+                .build();
+        BigNumberPojoProto parsed = BigNumberPojoProto.parseFrom(original.toByteArray());
+
+        assertEquals(huge, new java.math.BigInteger(parsed.getBigInteger()));
+        assertEquals(precise, new java.math.BigDecimal(parsed.getBigDecimal().getValue()));
     }
 
     @Test

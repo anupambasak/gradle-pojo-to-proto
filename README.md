@@ -14,6 +14,8 @@ A Gradle plugin to generate Protobuf (.proto) files from Java POJO classes.
     *   `java.time.Duration` -> `google.protobuf.Duration`
     *   `java.time.Period` -> `string`
     *   `java.util.UUID` -> `string`
+    *   `java.math.BigInteger` -> `string` (decimal representation)
+    *   `java.math.BigDecimal` -> `google.type.Decimal` (imports `google/type/decimal.proto`; not usable as a map key)
     *   `java.lang.Object`, class type parameters and wildcards (the `T` in `ApiResponse<T>`, `List<T>`, `List<?>`) -> `google.protobuf.Any` (imports `google/protobuf/any.proto`). Pack the concrete message with `Any.pack(...)`.
     *   Parameterized fields such as `ApiResponse<User>` -> `ApiResponse` (Protobuf messages cannot take type arguments).
     *   `short`/`Short`, `byte`/`Byte` -> `int32`

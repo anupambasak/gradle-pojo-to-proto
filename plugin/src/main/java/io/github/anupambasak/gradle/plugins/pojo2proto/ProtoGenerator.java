@@ -656,7 +656,13 @@ public class ProtoGenerator {
                     imports.add("google/protobuf/duration.proto");
                     break;
                 case "Period":
+                case "BigInteger":
+                case "java.math.BigInteger":
                     // No import needed for string
+                    break;
+                case "BigDecimal":
+                case "java.math.BigDecimal":
+                    imports.add("google/type/decimal.proto");
                     break;
                 case "Object":
                 case "java.lang.Object":
@@ -758,7 +764,12 @@ public class ProtoGenerator {
             case "Duration":
                 return "google.protobuf.Duration";
             case "Period":
+            case "BigInteger":
+            case "java.math.BigInteger":
                 return "string";
+            case "BigDecimal":
+            case "java.math.BigDecimal":
+                return "google.type.Decimal";
             case "Object":
             case "java.lang.Object":
                 // Any value: carried as google.protobuf.Any, like a class type parameter

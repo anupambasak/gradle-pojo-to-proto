@@ -58,6 +58,30 @@ class ProtoGeneratorTypeMappingTest {
     }
 
     @Test
+    void bigNumbersMapToStringAndDecimal() {
+        CompilationUnit cu = ProtoGeneratorEnumPrefixTest.parse("""
+                package com.example;
+                import java.math.BigDecimal;
+                import java.math.BigInteger;
+                import java.util.List;
+                public class Big {
+                    private BigInteger count;
+                    private java.math.BigInteger other;
+                    private BigDecimal price;
+                    private List<BigDecimal> prices;
+                }
+                """);
+
+        String message = generator.generateMessageWithNestedEnums(cu, List.of(), List.of());
+
+        assertTrue(message.contains("  string count = 1;"));
+        assertTrue(message.contains("  string other = 2;"));
+        assertTrue(message.contains("  google.type.Decimal price = 3;"));
+        assertTrue(message.contains("  repeated google.type.Decimal prices = 4;"));
+        assertTrue(generator.getImports(cu, List.of()).contains("google/type/decimal.proto"));
+    }
+
+    @Test
     void javaUtilDateMapsToTimestamp() {
         CompilationUnit cu = ProtoGeneratorEnumPrefixTest.parse("""
                 package com.example;
