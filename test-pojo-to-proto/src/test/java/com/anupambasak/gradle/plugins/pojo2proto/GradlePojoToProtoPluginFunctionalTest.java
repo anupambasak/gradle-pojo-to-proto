@@ -47,6 +47,8 @@ import io.github.anupambasak.gradle.dtos.proto.ResponseEnvelopeProto;
 import io.github.anupambasak.gradle.dtos.proto.SessionPojoProto;
 import io.github.anupambasak.gradle.dtos.proto.StringListProto;
 import io.github.anupambasak.gradle.dtos.proto.TimePojoProto;
+import io.github.anupambasak.gradle.dtos.proto.TravelPolicyHolderProto;
+import io.github.anupambasak.gradle.dtos.proto.TravelPolicyRequestDtoProto;
 import io.github.anupambasak.gradle.dtos.proto.VipCustomerPojoProto;
 import io.github.anupambasak.gradle.testenums.proto.AppConstantsProto;
 import io.github.anupambasak.gradle.testenums.proto.ContsProto;
@@ -493,6 +495,67 @@ class GradlePojoToProtoPluginFunctionalTest {
 
         assertEquals(huge, new java.math.BigInteger(parsed.getBigInteger()));
         assertEquals(precise, new java.math.BigDecimal(parsed.getBigDecimal().getValue()));
+    }
+
+    @Test
+    void verifyNestedClassesAreGeneratedAsNestedMessages() throws IOException {
+        Path path = dtos("TravelPolicyRequestDtoProto.proto");
+        assertTrue(Files.exists(path), "TravelPolicyRequestDtoProto.proto should be generated");
+        assertFalse(Files.exists(dtos("MessageResultProto.proto")), "nested classes live in their outer class's file");
+        assertFalse(Files.exists(dtos("PassengerDetailsDtoProto.proto")), "nested classes live in their outer class's file");
+
+        String content = Files.readString(path);
+        assertTrue(content.contains("message TravelPolicyRequestDtoProto {"));
+        assertTrue(content.contains("  message MessageResult {\n    optional string statusDescription = 1;\n    optional string statusCode = 2;\n  }"), content);
+        assertTrue(content.contains("  message PassengerDetailsDto {\n"), content);
+        assertTrue(content.contains("    message Coverage {\n      optional int64 amount = 1;\n      optional Kind kind = 2;\n    }"), content);
+        assertTrue(content.contains("    optional string policyNo = 1;"), content);
+        assertTrue(content.contains("    optional PassengerDetailsDto.Coverage coverage = 3;"), content);
+        assertTrue(content.contains("    repeated PassengerDetailsDto.Coverage extraCoverages = 4;"), content);
+        assertTrue(content.contains("  optional MessageResult messageResult = 5;"), content);
+        assertTrue(content.contains("  optional PassengerDetailsDto passengerDetailsDto = 6;"), content);
+        assertTrue(content.contains("  optional PassengerDetailsDto.Coverage primaryCoverage = 7;"), content);
+        assertFalse(content.contains("import \"io/github/anupambasak/gradle/dtos/proto/TravelPolicyRequestDtoProto.proto\""), "no self import");
+
+        String holder = Files.readString(dtos("TravelPolicyHolderProto.proto"));
+        assertTrue(holder.contains("import \"io/github/anupambasak/gradle/dtos/proto/TravelPolicyRequestDtoProto.proto\";"), holder);
+        assertTrue(holder.contains("  optional TravelPolicyRequestDtoProto request = 1;"), holder);
+        assertTrue(holder.contains("  optional TravelPolicyRequestDtoProto.MessageResult result = 2;"), holder);
+        assertTrue(holder.contains("  optional TravelPolicyRequestDtoProto.PassengerDetailsDto.Coverage coverage = 3;"), holder);
+    }
+
+    @Test
+    void verifyProtoFromNestedClasses() throws Exception {
+        TravelPolicyRequestDtoProto proto = TravelPolicyRequestDtoProto.newBuilder()
+                .setPnrNo("PNR1")
+                .setMessageResult(TravelPolicyRequestDtoProto.MessageResult.newBuilder()
+                        .setStatusCode("200").setStatusDescription("OK"))
+                .setPassengerDetailsDto(TravelPolicyRequestDtoProto.PassengerDetailsDto.newBuilder()
+                        .setPolicyNo("POL-9")
+                        .setPassengerId(7)
+                        .setCoverage(TravelPolicyRequestDtoProto.PassengerDetailsDto.Coverage.newBuilder()
+                                .setAmount(5000L).setKind(TravelPolicyRequestDtoProto.Kind.KIND_MEDICAL))
+                        .addExtraCoverages(TravelPolicyRequestDtoProto.PassengerDetailsDto.Coverage.newBuilder()
+                                .setAmount(0L).setKind(TravelPolicyRequestDtoProto.Kind.KIND_BAGGAGE)))
+                .build();
+
+        TravelPolicyRequestDtoProto parsed = TravelPolicyRequestDtoProto.parseFrom(proto.toByteArray());
+
+        assertEquals("PNR1", parsed.getPnrNo());
+        assertEquals("200", parsed.getMessageResult().getStatusCode());
+        assertEquals("POL-9", parsed.getPassengerDetailsDto().getPolicyNo());
+        assertEquals(5000L, parsed.getPassengerDetailsDto().getCoverage().getAmount());
+        assertEquals(TravelPolicyRequestDtoProto.Kind.KIND_BAGGAGE, parsed.getPassengerDetailsDto().getExtraCoverages(0).getKind());
+        assertFalse(parsed.hasPrimaryCoverage());
+        assertFalse(parsed.hasPolicyIssueDate());
+
+        TravelPolicyHolderProto holder = TravelPolicyHolderProto.newBuilder()
+                .setRequest(parsed)
+                .setResult(parsed.getMessageResult())
+                .setCoverage(parsed.getPassengerDetailsDto().getCoverage())
+                .build();
+        assertEquals("OK", holder.getResult().getStatusDescription());
+        assertEquals(5000L, holder.getCoverage().getAmount());
     }
 
     @Test

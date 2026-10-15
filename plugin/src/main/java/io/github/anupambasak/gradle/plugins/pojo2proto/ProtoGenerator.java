@@ -19,6 +19,7 @@ package io.github.anupambasak.gradle.plugins.pojo2proto;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.ImportDeclaration;
 import com.github.javaparser.ast.Node;
+import com.github.javaparser.ast.body.BodyDeclaration;
 import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
 import com.github.javaparser.ast.body.EnumDeclaration;
 import com.github.javaparser.ast.body.FieldDeclaration;
@@ -134,6 +135,8 @@ public class ProtoGenerator {
     /** Same as {@link #protoNames} but without {@link Options#nameSuffix}; used for enum value prefixes. */
     private final Map<TypeDeclaration<?>, String> baseNames = new IdentityHashMap<>();
     private final List<TypeDeclaration<?>> topLevelTypes = new ArrayList<>();
+    /** The top-level types plus every nested class (not interface or enum), used to resolve field types. */
+    private final List<TypeDeclaration<?>> allTypes = new ArrayList<>();
     /** Superclasses that could not be found among the sources, as {@code com.x.Child extends Parent}. */
     private final Set<String> unresolvedSuperclasses = new TreeSet<>();
 
@@ -170,11 +173,16 @@ public class ProtoGenerator {
         protoNames.clear();
         baseNames.clear();
         topLevelTypes.clear();
+        allTypes.clear();
         unresolvedSuperclasses.clear();
         topLevelWrappers.clear();
         nestedWrappers.clear();
         for (CompilationUnit cu : cus) {
             topLevelTypes.addAll(cu.getTypes());
+        }
+        for (TypeDeclaration<?> type : topLevelTypes) {
+            allTypes.add(type);
+            collectNestedClasses(type, allTypes);
         }
         Map<String, List<TypeDeclaration<?>>> byKey = new TreeMap<>();
         for (TypeDeclaration<?> type : topLevelTypes) {
@@ -373,6 +381,9 @@ public class ProtoGenerator {
         primaryProtoName(cu).ifPresent(className -> {
             messageBuilder.append("message ").append(className).append(" {\n");
 
+            cu.getPrimaryType().ifPresent(type ->
+                    messageBuilder.append(indent(nestedMessages(type, cu, enumDeclarations, false))));
+
             int index = 1;
             for (MessageField field : messageFields(cu, enumDeclarations)) {
                 String protoType = getProtoType(field.javaType(), enumDeclarations, cu, false);
@@ -384,6 +395,51 @@ public class ProtoGenerator {
         return messageBuilder.toString();
     }
     
+    /**
+     * Messages for the classes nested in {@code type}, each holding its own nested classes, to be placed inside the
+     * message of {@code type}. Interfaces and enums are not turned into nested messages (nested enums are generated
+     * by the caller).
+     */
+    private String nestedMessages(TypeDeclaration<?> type, CompilationUnit cu, List<EnumDeclaration> enumDeclarations,
+                                  boolean qualifyNestedEnums) {
+        StringBuilder messages = new StringBuilder();
+        for (ClassOrInterfaceDeclaration nested : memberClasses(type)) {
+            messages.append("message ").append(nested.getNameAsString()).append(" {\n");
+            messages.append(indent(nestedMessages(nested, cu, enumDeclarations, qualifyNestedEnums)));
+            int index = 1;
+            for (MessageField field : messageFields(nested, cu, enumDeclarations)) {
+                String protoType = getProtoType(field.javaType(), enumDeclarations, cu, qualifyNestedEnums);
+                messages.append(fieldLine(protoType, field.name(), index++));
+            }
+            messages.append("}\n\n");
+        }
+        return messages.toString();
+    }
+
+    private static String indent(String text) {
+        return Arrays.stream(text.split("\n", -1))
+                .map(line -> line.isEmpty() ? line : "  " + line)
+                .collect(Collectors.joining("\n"));
+    }
+
+    /** The classes declared directly in {@code type}; interfaces and records are not generated. */
+    private static List<ClassOrInterfaceDeclaration> memberClasses(TypeDeclaration<?> type) {
+        List<ClassOrInterfaceDeclaration> classes = new ArrayList<>();
+        for (BodyDeclaration<?> member : type.getMembers()) {
+            if (member instanceof ClassOrInterfaceDeclaration cls && !cls.isInterface()) {
+                classes.add(cls);
+            }
+        }
+        return classes;
+    }
+
+    private static void collectNestedClasses(TypeDeclaration<?> type, List<TypeDeclaration<?>> into) {
+        for (ClassOrInterfaceDeclaration nested : memberClasses(type)) {
+            into.add(nested);
+            collectNestedClasses(nested, into);
+        }
+    }
+
     /** One field declaration, with the {@code optional} label added to singular fields when {@link Options#optionalFields} is on. */
     private String fieldLine(String protoType, String fieldName, int number) {
         boolean singular = !protoType.startsWith("repeated ") && !protoType.startsWith("map<");
@@ -399,6 +455,8 @@ public class ProtoGenerator {
             for (EnumDeclaration nestedEnum : nestedEnums) {
                 messageBuilder.append(generateEnum(nestedEnum));
             }
+            cu.getPrimaryType().ifPresent(type ->
+                    messageBuilder.append(indent(nestedMessages(type, cu, allEnums, true))));
 
             StringBuilder fieldsBuilder = new StringBuilder();
             int index = 1;
@@ -462,6 +520,14 @@ public class ProtoGenerator {
         for (MessageField field : messageFields(cu, enumDeclarations)) {
             collectImports(field.javaType(), cu, enumDeclarations, imports);
         }
+        // Nested classes are generated inside the message, so their fields need imports too
+        List<TypeDeclaration<?>> nested = new ArrayList<>();
+        cu.getPrimaryType().ifPresent(type -> collectNestedClasses(type, nested));
+        for (TypeDeclaration<?> nestedType : nested) {
+            for (MessageField field : messageFields(nestedType, cu, enumDeclarations)) {
+                collectImports(field.javaType(), cu, enumDeclarations, imports);
+            }
+        }
         return imports;
     }
 
@@ -484,6 +550,11 @@ public class ProtoGenerator {
      */
     List<MessageField> messageFields(CompilationUnit cu, List<EnumDeclaration> enumDeclarations) {
         TypeDeclaration<?> type = cu.getPrimaryType().orElse(null);
+        return type == null ? List.of() : messageFields(type, cu, enumDeclarations);
+    }
+
+    /** Like {@link #messageFields(CompilationUnit, List)} for any type declared in {@code cu}, e.g. a nested class. */
+    List<MessageField> messageFields(TypeDeclaration<?> type, CompilationUnit cu, List<EnumDeclaration> enumDeclarations) {
         if (type == null || (type instanceof ClassOrInterfaceDeclaration cls && cls.isInterface())) {
             return List.of();
         }
@@ -498,7 +569,7 @@ public class ProtoGenerator {
         Map<String, String> bindings = Map.of();
         while (current instanceof ClassOrInterfaceDeclaration cls && !cls.getExtendedTypes().isEmpty()) {
             ClassOrInterfaceType extended = cls.getExtendedTypes().get(0);
-            Optional<ClassOrInterfaceDeclaration> superclass = resolveType(extended.getNameWithScope(), currentCu, topLevelTypes)
+            Optional<ClassOrInterfaceDeclaration> superclass = resolveType(extended.getNameWithScope(), currentCu, allTypes)
                     .filter(t -> t instanceof ClassOrInterfaceDeclaration c && !c.isInterface())
                     .map(t -> (ClassOrInterfaceDeclaration) t);
             if (superclass.isEmpty()) {
@@ -583,7 +654,7 @@ public class ProtoGenerator {
         }
         Optional<TypeDeclaration<?>> declaration = resolveEnum(name, cu, enumDeclarations)
                 .<TypeDeclaration<?>>map(e -> e)
-                .or(() -> resolveType(name, cu, topLevelTypes));
+                .or(() -> resolveType(name, cu, allTypes));
         String qualified = declaration.flatMap(TypeDeclaration::getFullyQualifiedName).orElse(name);
         String arguments = classType.getTypeArguments()
                 .map(args -> args.stream()
@@ -669,10 +740,12 @@ public class ProtoGenerator {
                     imports.add("google/protobuf/any.proto");
                     break;
                 default:
-                    Optional<TypeDeclaration<?>> sourceType = resolveType(importType, cu, topLevelTypes);
+                    Optional<TypeDeclaration<?>> sourceType = resolveType(importType, cu, allTypes);
                     if (sourceType.isPresent()) {
-                        if (sourceType.get() != cu.getPrimaryType().orElse(null)) {
-                            imports.add(protoFile(sourceType.get()));
+                        // Nested classes are generated inside their outermost type's file
+                        TypeDeclaration<?> outer = outermostType(sourceType.get());
+                        if (outer != cu.getPrimaryType().orElse(null)) {
+                            imports.add(protoFile(outer));
                         }
                         break;
                     }
@@ -776,10 +849,33 @@ public class ProtoGenerator {
                 return "google.protobuf.Any";
             default:
                 String fromPackage = protoPackage(cu);
-                return resolveType(javaType, cu, topLevelTypes)
-                        .map(type -> qualify(protoName(type), type, fromPackage))
+                return resolveType(javaType, cu, allTypes)
+                        .map(type -> sourceTypeName(type, cu, fromPackage, topLevelScope))
                         .orElse(stripPackage(javaType));
         }
+    }
+
+    /**
+     * How a message refers to a generated source type. A nested class is a message nested in its outermost type's
+     * message, so it is {@code Outer.Inner}, or just {@code Inner} from within that same message.
+     */
+    private String sourceTypeName(TypeDeclaration<?> type, CompilationUnit cu, String fromPackage, boolean topLevelScope) {
+        TypeDeclaration<?> outer = outermostType(type);
+        if (outer == type) {
+            return qualify(protoName(type), type, fromPackage);
+        }
+        StringBuilder path = new StringBuilder(type.getNameAsString());
+        Node node = type.getParentNode().orElse(null);
+        while (node != null && node != outer) {
+            if (node instanceof TypeDeclaration<?> enclosing) {
+                path.insert(0, enclosing.getNameAsString() + ".");
+            }
+            node = node.getParentNode().orElse(null);
+        }
+        if (!topLevelScope && cu != null && outer == cu.getPrimaryType().orElse(null)) {
+            return path.toString();
+        }
+        return qualify(protoName(outer) + "." + path, outer, fromPackage);
     }
 
     private boolean isPrimitive(String javaType) {
@@ -831,7 +927,7 @@ public class ProtoGenerator {
         List<T> candidates = new ArrayList<>();
         for (T e : declarations) {
             String fqn = e.getFullyQualifiedName().orElse(e.getNameAsString());
-            if (fqn.equals(javaType) || fqn.endsWith("." + javaType)) {
+            if ((fqn.equals(javaType) || fqn.endsWith("." + javaType)) && isVisibleByName(e, javaType, cu)) {
                 candidates.add(e);
             }
         }
@@ -866,6 +962,25 @@ public class ProtoGenerator {
         String pkg = cu.getPackageDeclaration().map(pd -> pd.getNameAsString() + ".").orElse("");
         Optional<T> samePackage = findByFqn(candidates, pkg + javaType);
         return samePackage.isPresent() ? samePackage : candidates.stream().findFirst();
+    }
+
+    /**
+     * A nested class can be named by its simple name only where it is in scope: from the file declaring it or
+     * where it is imported. Elsewhere it needs its outer class ({@code Outer.Inner}). Enums are matched
+     * by simple name from anywhere.
+     */
+    private static boolean isVisibleByName(TypeDeclaration<?> type, String javaType, CompilationUnit cu) {
+        if (!(type instanceof ClassOrInterfaceDeclaration) || type.getParentNode().orElse(null) instanceof CompilationUnit
+                || javaType.contains(".") || cu == null) {
+            return true;
+        }
+        if (type.findCompilationUnit().map(c -> c == cu).orElse(false)) {
+            return true;
+        }
+        String fqn = type.getFullyQualifiedName().orElse("");
+        return cu.getImports().stream().anyMatch(imp -> imp.isAsterisk()
+                ? fqn.equals(imp.getNameAsString() + "." + javaType)
+                : fqn.equals(imp.getNameAsString()));
     }
 
     private static <T extends TypeDeclaration<?>> Optional<T> findByFqn(List<T> candidates, String fqn) {
@@ -924,9 +1039,9 @@ public class ProtoGenerator {
      * The outermost type enclosing the enum (the enum itself if it is top level). That type's
      * {@code .proto} file is where the enum is generated.
      */
-    static TypeDeclaration<?> outermostType(EnumDeclaration enumDeclaration) {
-        TypeDeclaration<?> outer = enumDeclaration;
-        Node node = enumDeclaration.getParentNode().orElse(null);
+    static TypeDeclaration<?> outermostType(TypeDeclaration<?> declaration) {
+        TypeDeclaration<?> outer = declaration;
+        Node node = declaration.getParentNode().orElse(null);
         while (node != null && !(node instanceof CompilationUnit)) {
             if (node instanceof TypeDeclaration<?> typeDeclaration) {
                 outer = typeDeclaration;
@@ -1138,7 +1253,7 @@ public class ProtoGenerator {
         if (enumDeclaration.isPresent()) {
             return enumDeclaration.get().findCompilationUnit().map(c -> c == cu).orElse(false);
         }
-        return resolveType(leaf, cu, topLevelTypes)
+        return resolveType(leaf, cu, allTypes)
                 .flatMap(Node::findCompilationUnit)
                 .map(c -> c == cu)
                 .orElse(false);
